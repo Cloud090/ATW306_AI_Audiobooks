@@ -1,0 +1,61 @@
+Input:  
+<<PERSONA = Philosophical>>  
+<<SFXSTYLE = Subtle Ambience>>  
+The old lighthouse keeper, Silas, often pondered the nature of light and darkness. He wasn’t concerned with their literal definitions, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile.  
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. He believed the ocean held all the answers, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions.
+
+---
+
+Output:  
+<<NEUTRAL Intensity=3>>The old lighthouse keeper, Silas, often pondered the nature of light and darkness<<\NEUTRAL>>. <<PHILOSOPHICAL Intensity=5>He wasn’t concerned with their literal definitions<<\PHILOSOPHICAL>>, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile. <<BGSFX Sound=Ocean waves>>
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. <<PHILOSOPHICAL Intensity=6>He believed the ocean held all the answers<<\PHILOSOPHICAL>>, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions. <<\BGSFX>>
+
+---
+
+Input:  
+<<PERSONA = Philosophical>>  
+<<SFXSTYLE = Cinematic>>  
+The old lighthouse keeper, Silas, often pondered the nature of light and darkness. He wasn’t concerned with their literal definitions, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile.  
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. He believed the ocean held all the answers, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions.
+
+---
+
+Output:  
+<<NEUTRAL Intensity=3>>The old lighthouse keeper, Silas, often pondered the nature of light and darkness<<\NEUTRAL>>. <<PHILOSOPHICAL Intensity=7>He wasn’t concerned with their literal definitions<<\PHILOSOPHICAL>>, but rather with what they represented – knowledge and ignorance, hope and despair. <<BGSFX Sound=Wind (howling)>>Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile. <<FGSFX Sound=Bell ding>> <<\BGSFX>>
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. <<PHILOSOPHICAL Intensity=8>He believed the ocean held all the answers<<\PHILOSOPHICAL>>, but they were written in a language he could only partially decipher. <<BGSFX Sound=Thunder rumble>>Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions. <<\BGSFX>>
+
+---
+
+Input:  
+<<PERSONA = Philosophical>>  
+<<SFXSTYLE = Minimalist>>  
+The old lighthouse keeper, Silas, often pondered the nature of light and darkness. He wasn’t concerned with their literal definitions, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile.  
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. He believed the ocean held all the answers, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions.
+
+---
+
+Output:  
+<<NEUTRAL Intensity=2>>The old lighthouse keeper, Silas, often pondered the nature of light and darkness<<\NEUTRAL>>. <<PHILOSOPHICAL Intensity=4>He wasn’t concerned with their literal definitions<<\PHILOSOPHICAL>>, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile.
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. <<PHILOSOPHICAL Intensity=5>He believed the ocean held all the answers<<\PHILOSOPHICAL>>, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions.
+
+---
+
+Input:  
+<<PERSONA = Philosophical>>  
+<<SFXSTYLE = Immersive>>  
+The old lighthouse keeper, Silas, often pondered the nature of light and darkness. He wasn’t concerned with their literal definitions, but rather with what they represented – knowledge and ignorance, hope and despair. Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile.  
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. He believed the ocean held all the answers, but they were written in a language he could only partially decipher. Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions.
+
+---
+
+Output:  
+<<NEUTRAL Intensity=3>>The old lighthouse keeper, Silas, often pondered the nature of light and darkness<<\NEUTRAL>>. <<PHILOSOPHICAL Intensity=6>He wasn’t concerned with their literal definitions<<\PHILOSOPHICAL>>, but rather with what they represented – knowledge and ignorance, hope and despair. <<BGSFX Sound=Ocean waves>> <<BGSFX Sound=Wind (gentle)>>Each sweep of the beam across the turbulent sea felt like a fleeting attempt to illuminate the vast unknown, a gesture both profound and ultimately futile. <<FGSFX Sound=Door creak>> <<\BGSFX>> <<\BGSFX>>
+
+The sea itself seemed to echo his thoughts, a constant rhythm of crashing waves and whispering currents. <<PHILOSOPHICAL Intensity=7>He believed the ocean held all the answers<<\PHILOSOPHICAL>>, but they were written in a language he could only partially decipher. <<BGSFX Sound=Rain (light)>>Perhaps, he mused, the true wisdom lay not in finding the answers, but in accepting the questions. <<\BGSFX>>

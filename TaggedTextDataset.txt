@@ -1,0 +1,64 @@
+Input:
+<<PERSONA = Reserved>>
+<<SFXSTYLE = Minimalist>>
+The alley reeked of stale garbage and desperation. Jax pressed his back against the brick wall, scanning the rooftops. He’d been tracking Kael for three days, and the trail had led him here, to the heart of the Crimson District. A low growl rumbled in his chest – Kael wouldn’t get away this time.
+
+A sudden crash from the fire escape above sent shards of glass raining down. Jax instinctively ducked, his hand flying to the pulse pistol at his hip. He risked a glance upwards, spotting a figure silhouetted against the neon glow of the city. It was Kael, and he was already moving, leaping across the gap to the next building.
+
+---
+
+Output:
+The alley reeked of stale garbage and desperation. <<FEAR Intensity=1>>Jax pressed his back against the brick wall<<\FEAR>>, scanning the rooftops. He’d been tracking Kael for three days, and the trail had led him here, to the heart of the Crimson District. A low growl rumbled in his chest – Kael wouldn’t get away this time. 
+
+A sudden crash from the fire escape above sent shards of glass raining down. <<FEAR Intensity=2>>Jax instinctively ducked<<\FEAR>>, his hand flying to the pulse pistol at his hip. He risked a glance upwards, spotting a figure silhouetted against the neon glow of the city. It was Kael, and he was already moving, leaping across the gap to the next building.
+
+======================================================================
+
+Input:
+<<PERSONA = Subtle>>
+<<SFXSTYLE = Minimalist>>
+The chronometer flickered, displaying a date centuries in the past. Elias gripped the activation lever, his knuckles white. He’d calculated the coordinates a thousand times, but the uncertainty still gnawed at him. This jump was different – not a research expedition, but a desperate attempt to correct a catastrophic error. He took a deep breath, the stale air of the lab filling his lungs, and threw the lever.
+
+The world dissolved into a swirling vortex of color and light. When his vision cleared, he stood in a bustling marketplace, the air thick with the smells of spices and unfamiliar foods. People in strange clothing hurried past, their voices a cacophony of an ancient tongue. He scanned the crowd, searching for a face he’d only seen in faded photographs – the man who held the key to preventing the future’s ruin.
+
+---
+
+Output:
+The chronometer flickered, displaying a date centuries in the past. Elias gripped the activation lever, his knuckles white. <<FEAR Intensity=1>>He’d calculated the coordinates a thousand times, but the uncertainty still gnawed at him.<<\FEAR>> This jump was different – not a research expedition, but a desperate attempt to correct a catastrophic error. He took a deep breath, the stale air of the lab filling his lungs, and threw the lever.
+
+The world dissolved into a swirling vortex of color and light. When his vision cleared, he stood in a bustling marketplace, the air thick with the smells of spices and unfamiliar foods. People in strange clothing hurried past, their voices a cacophony of an ancient tongue. <<FEAR Intensity=2>>He scanned the crowd, searching for a face he’d only seen in faded photographs<<\FEAR>> – the man who held the key to preventing the future’s ruin.
+
+======================================================================
+
+Input:
+<<PERSONA = Reserved>>
+<<SFXSTYLE = Minimalist>>
+The old manor stood silhouetted against the bruised purple sky, a monument to forgotten sins. Rain lashed against the leaded glass windows, each drop a mournful tear. Inside, Lord Valerius paced, his shadow stretching and contorting like a tormented spirit. He hadn’t fed in days, and the hunger gnawed at him, a cold fire in his veins.
+
+A flicker of movement at the edge of his vision. A young woman, Elara, stood hesitantly in the doorway, clutching a silver locket. She’d come seeking answers about her family’s past, unaware she’d walked into the lair of a creature of the night. Valerius’s gaze locked onto her, and a predatory smile touched his lips. The hunt had begun.
+
+---
+
+Output:
+The old manor stood silhouetted against the bruised purple sky, a monument to forgotten sins. Rain lashed against the leaded glass windows, each drop a mournful tear. Inside, Lord Valerius paced, his shadow stretching and contorting like a tormented spirit. <<FEAR Intensity=1>>He hadn’t fed in days, and the hunger gnawed at him, a cold fire in his veins.<<\FEAR>>
+
+A flicker of movement at the edge of his vision. A young woman, Elara, stood hesitantly in the doorway, clutching a silver locket. She’d come seeking answers about her family’s past, unaware she’d walked into the lair of a creature of the night. Valerius’s gaze locked onto her, and a predatory smile touched his lips. The hunt had begun.
+
+======================================================================
+
+Input:
+<<PERSONA = Subtle>>
+<<SFXSTYLE = Subtle Ambience>>
+The old manor stood silhouetted against the bruised purple sky, a monument to forgotten sins. Rain lashed against the leaded glass windows, each drop a mournful tear. Inside, Lord Valerius paced, his shadow stretching and contorting like a tormented spirit. He hadn’t fed in days, and the hunger gnawed at him, a cold fire in his veins.
+
+A flicker of movement at the edge of his vision. A young woman, Elara, stood hesitantly in the doorway, clutching a silver locket. She’d come seeking answers about her family’s past, unaware she’d walked into the lair of a creature of the night. Valerius’s gaze locked onto her, and a predatory smile touched his lips. The hunt had begun.
+
+---
+
+Output:
+The old manor stood silhouetted against the bruised purple sky, a monument to forgotten sins. <<BGSFX Sound=Rain (light)>>Rain lashed against the leaded glass windows, each drop a mournful tear. <<\BGSFX>> Inside, Lord Valerius paced, his shadow stretching and contorting like a tormented spirit. <<FEAR Intensity=2>>He hadn’t fed in days, and the hunger gnawed at him, a cold fire in his veins.<<\FEAR>>
+
+A flicker of movement at the edge of his vision. A young woman, Elara, stood hesitantly in the doorway, clutching a silver locket. She’d come seeking answers about her family’s past, unaware she’d walked into the lair of a creature of the night. <<ANGRY Intensity=3>>Valerius’s gaze locked onto her, and a predatory smile touched his lips.<<\ANGRY>> The hunt had begun.
+
+======================================================================
+

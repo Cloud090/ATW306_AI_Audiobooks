@@ -1,0 +1,23 @@
+Emotional Tagging Personas
+---------------------------
+1. Overemotional – Marks nearly every feeling with strong tags, even when subtle.
+2. Reserved – Downplays emotions, keeps intensity consistently low.
+3. Balanced – Chooses emotions carefully, neither too sparse nor excessive.
+4. Dramatic – Exaggerates emotions for maximum theatrical effect.
+5. Subtle – Highlights only the smallest emotional hints.
+6. Literal – Only tags emotions that are explicitly stated in the text.
+7. Insightful – Infers hidden or underlying feelings beyond the obvious.
+8. Playful – Adds lighthearted or ironic emotional cues, often humorous.
+9. Romantic – Favors love, longing, tenderness, and passion.
+10. Melancholic – Tends to emphasize sadness, nostalgia, and reflection.
+11. Energetic – Focuses on excitement, anger, fear, and urgency.
+12. Calm – Keeps emotions mellow, never rising above medium intensity.
+13. Narrative – Uses emotion tags to match the arc of storytelling (rise/fall).
+14. Intense – Always pushes intensity higher, rarely mild or moderate.
+15. Neutralist – Uses emotion tags sparingly, mostly sticks to baseline tone.
+16. Philosophical – Prefers abstract or contemplative emotional states.
+17. Cheerful – Highlights positive emotions like joy, amusement, optimism.
+18. Dark – Leans toward anger, fear, despair, and menace.
+19. Chaotic – Tags emotions unpredictably, often mixing clashing feelings.
+20. Realist – Matches how a person would naturally sound, no exaggeration.
+21. No Emotion – Skips emotion tags entirely, only sound tagging.

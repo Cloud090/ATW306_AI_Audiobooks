@@ -1,0 +1,103 @@
+Action
+Adventure
+Romance
+Comedy
+Tragedy
+Drama
+Horror
+Thriller
+Mystery
+Crime
+Fantasy
+Science Fiction
+Cyberpunk
+Steampunk
+Dieselpunk
+Solarpunk
+Post-Apocalyptic
+Dystopian
+Utopian
+Epic
+Sword and Sorcery
+Dark Fantasy
+Urban Fantasy
+Mythpunk
+Gothic
+Paranormal
+Supernatural
+Magical Realism
+Surreal
+Absurdist
+Experimental
+Satire
+Parody
+Farce
+Slapstick
+Romantic Comedy
+Tragicomedy
+Noir
+Neo-Noir
+Spy
+Espionage
+Military
+War
+Western
+Weird West
+Space Opera
+Planetary Romance
+Time Travel
+Alternate History
+Historical Fiction
+Biographical
+Autobiographical
+Slice of Life
+Coming of Age
+Young Adult
+Children’s
+Fairy Tale
+Folklore
+Mythology
+Legend
+Fable
+Tall Tale
+Chivalric Romance
+Epic Poetry
+Psychological
+Philosophical
+Existential
+Political
+Social Commentary
+Religious
+Inspirational
+Didactic
+Allegory
+Adventure Comedy
+Black Comedy
+Romantic Tragedy
+Heroic
+Antiheroic
+Villain-Protagonist
+Detective
+Police Procedural
+Courtroom
+Medical
+Techno-Thriller
+Cli-Fi (Climate Fiction)
+Eco-Fiction
+Sports
+Martial Arts
+Karate Flick
+Kaiju
+Mecha
+Monster Horror
+Body Horror
+Splatterpunk
+Haunted House
+Occult
+Vampire
+Werewolf
+Zombie
+Lovecraftian
+Cosmic Horror
+Metafiction
+Interactive Fiction
