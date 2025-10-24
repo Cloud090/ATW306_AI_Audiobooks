@@ -1,0 +1,2 @@
+python SpanModel.py
+pause
