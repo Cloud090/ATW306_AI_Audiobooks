@@ -1,13 +1,7 @@
-# BGSFX_Test_v12_OffsetSafe.py
-# -----------------------------
-# Offset-based prefix trimming (no lost first word), threshold debug,
-# tag-change dampening. No intensity head assumed for BGSFX.
-
 import os, re, torch, numpy as np
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
 
-# ---------- SETTINGS ----------
 BaseModel = "roberta-base"
 BaseDir = os.path.dirname(os.path.abspath(__file__))
 ModelDir = os.path.join(BaseDir, "bgsfx_tagger_v3", "best")
@@ -17,9 +11,8 @@ MaxTokens = 450
 Device = "cuda" if torch.cuda.is_available() else "cpu"
 DropoutP = 0.2
 ThresholdDefault = 0.40
-TagChangeDelta = 0.15   # minimum jump in B-prob to allow switching tags
+TagChangeDelta = 0.15
 
-# ---------- HELPERS ----------
 def ReadList(path):
     with open(path, "r", encoding="utf-8") as f:
         return [l.strip() for l in f if l.strip()]
@@ -45,7 +38,6 @@ def Preprocess(raw):
     prefix = f"SFXStyle: {style}. Story: "
     return prefix + txt, style, prefix
 
-# ---------- MODEL ----------
 class BGSFXTagger(nn.Module):
     def __init__(self, base, n):
         super().__init__()
@@ -59,7 +51,6 @@ class BGSFXTagger(nn.Module):
         h = self.drop(h)
         return {"Bio": self.bio(h), "Cls": self.cls(h)}
 
-# ---------- LOAD ----------
 SfxList = ReadList(SfxListPath)
 Tok = AutoTokenizer.from_pretrained(ModelDir)
 Model = BGSFXTagger(BaseModel, len(SfxList))
@@ -68,14 +59,9 @@ Model.load_state_dict(State, strict=False)
 Model.to(Device).eval()
 print(f"[Loaded model from {ModelDir}] ({len(SfxList)} SFX types)")
 
-# ---------- RECONSTRUCT ----------
 def Reconstruct(enc_ids, attn, offs, outs, thr=ThresholdDefault, prefix_char_len=0):
-    """
-    offs: token offsets from tokenizer (list of (start,end))
-    We skip any token whose end <= prefix_char_len (i.e., inside the prefix).
-    """
-    bio = outs["Bio"].softmax(-1)[0].cpu().numpy()            # [T,3]
-    cls_probs = outs["Cls"].softmax(-1)[0].cpu().numpy()      # [T,K]
+    bio = outs["Bio"].softmax(-1)[0].cpu().numpy()            
+    cls_probs = outs["Cls"].softmax(-1)[0].cpu().numpy()      
     toks = Tok.convert_ids_to_tokens(enc_ids[0])
 
     # Build parallel arrays for kept tokens (exclude specials)
@@ -93,16 +79,13 @@ def Reconstruct(enc_ids, attn, offs, outs, thr=ThresholdDefault, prefix_char_len
         start, end = offs[orig_i]
         tok_txt = t.replace("Ġ", " ")
 
-        # skip tokens that are part of the prefix string
         if end <= prefix_char_len:
             continue
 
-        # BIO start prob and best SFX class
         pb = bio[orig_i, 1] if orig_i < bio.shape[0] else 0.0
         best_cls = int(np.argmax(cls_probs[orig_i])) if orig_i < cls_probs.shape[0] else -1
         sfx = SfxList[best_cls] if 0 <= best_cls < len(SfxList) else "UNKNOWN"
 
-        # tag-change dampening
         should_change = False
         if pb >= thr:
             if prev_sfx is None:
@@ -127,7 +110,6 @@ def Reconstruct(enc_ids, attn, offs, outs, thr=ThresholdDefault, prefix_char_len
     txt = re.sub(r"\s{2,}", " ", txt)
     return txt.strip(), bcount
 
-# ---------- PROCESS ----------
 def Process(text):
     full, style, prefix = Preprocess(text)
     print(f"[Processing Style={style}]")
@@ -163,13 +145,10 @@ def Process(text):
                              thr=0.0, prefix_char_len=prefix_char_len)
         final_thr = 0.0
 
-    # Safety: strip any lingering prefix phrase if somehow emitted
     txt = re.sub(r"^\s*SFXStyle\s*:\s*[^.]+\.\s*Story\s*:\s*", "", txt, flags=re.I)
     print(f"[Result] Style={style} | Tags={b} | Threshold={final_thr:.2f}")
     return txt
 
-# ---------- MAIN ----------
-if __name__ == "__main__":
     sample = """<<SFXSTYLE = Cinematic>>
 The rain hammered against the steel rooftops of New Arcadia, each droplet lost in a chorus of thunder.
 Beneath the neon haze, Detective Lorne stepped over puddles reflecting signs for clubs long since closed.
@@ -184,6 +163,6 @@ The lights flickered to life reluctantly, revealing a workshop frozen mid-projec
 mechanical arms half-assembled, wires tangled like vines.
 A single terminal blinked at the far end of the room, its fan groaning against dust.
 Lorne pulled his coat tighter and exhaled; the sound was lost beneath the distant thrum of rain."""
-    print("\n[INPUT]\n", sample)
-    out = Process(sample)
-    print("\n[OUTPUT]\n", out)
+print("\n[INPUT]\n", sample)
+out = Process(sample)
+print("\n[OUTPUT]\n", out)

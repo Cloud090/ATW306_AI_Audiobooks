@@ -1,14 +1,8 @@
-# BGSFX_Tagger_v3_NoIntensity.py
-# -------------------------------
-# Trains a RoBERTa-based span tagger to insert <<BGSFX=...>> tags (no Intensity).
-# Uses SFXSTYLE context (Cinematic, etc.) instead of PERSONA.
-
 import os, re, csv, random, torch, numpy as np
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 
-# ---------- SETTINGS ----------
 TrainTSV = "TaggedTextDataset_train.tsv"
 ValTSV = "TaggedTextDataset_val.tsv"
 BgsfxTxt = "BackgroundSFX.txt"
@@ -36,7 +30,6 @@ MinTagRate = 0.03
 LambdaNoTag = 2.0
 CoverageAlpha = 0.25
 
-# ---------- HELPERS ----------
 def SetSeed(S=42):
     random.seed(S); np.random.seed(S); torch.manual_seed(S); torch.cuda.manual_seed_all(S)
 SetSeed(Seed)
@@ -58,7 +51,6 @@ def ReadTsv(Path):
 
 def NormalizeText(S): return re.sub(r"\s+", " ", S).strip()
 
-# ---------- TAG HELPERS ----------
 SfxStyleTag = re.compile(r"<<\s*SFXSTYLE\s*=\s*([^>]+)>>", re.IGNORECASE)
 def ExtractSfxStyle(Txt):
     M = SfxStyleTag.search(Txt)
@@ -92,7 +84,6 @@ def ParseBgsfxSpans(Tagged):
         i += 1
     return "".join(Text), Spans
 
-# ---------- DATASET ----------
 class BGSFXDataset(Dataset):
     def __init__(self, Rows, Tok, SfxList):
         self.Tok = Tok
@@ -146,7 +137,6 @@ class Collator:
             "SfxCls": torch.tensor(Cls)
         }
 
-# ---------- MODEL ----------
 class BGSFXTagger(nn.Module):
     def __init__(self, Base, NumSfx):
         super().__init__()
@@ -160,7 +150,6 @@ class BGSFXTagger(nn.Module):
         H = self.Drop(H)
         return {"Bio": self.Bio(H), "Cls": self.Cls(H)}
 
-# ---------- LOSS ----------
 def ComputeLoss(O, B):
     Dev = B["AttentionMask"].device
     BioW = torch.tensor(BioClassWeights, device=Dev)
@@ -199,7 +188,6 @@ def ComputeF1(Logits, Gold, Mask):
     Rc = Tp / (Tp + Fn + 1e-9)
     return 2 * Pr * Rc / (Pr + Rc + 1e-9)
 
-# ---------- TRAIN ----------
 def Train():
     SfxList = ReadList(BgsfxTxt)
     Tok = AutoTokenizer.from_pretrained(BaseModel, use_fast=True)
@@ -297,7 +285,5 @@ def Train():
 
     print("\nTraining complete.\n")
 
-# ---------- MAIN ----------
-if __name__ == "__main__":
-    print("=== BGSFX Tagger Training (No Intensity version) ===")
-    Train()
+print("BGSFX Tagger Training\n]n")
+Train()
