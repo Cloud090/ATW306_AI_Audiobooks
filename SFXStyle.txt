@@ -1,0 +1,18 @@
+SFX Style Modifiers
+-------------------
+1. Minimalist – Very few sounds, only the essentials.
+2. Cinematic – Big, dramatic soundscapes like a film soundtrack.
+3. Subtle Ambience – Quiet, background-only sounds to set the mood.
+4. Immersive – Rich layering of multiple background and foreground sounds.
+5. Naturalistic – Prefers real-world sounds (birds, footsteps, wind).
+6. Surreal – Uses odd or dreamlike effects (echoes, distortions).
+7. Chaotic – Throws in many sounds at once, unpredictable combinations.
+8. Precise – Every sound carefully placed with clear purpose.
+9. Sparse – Long stretches of silence, occasional sharp sounds.
+10. Overloaded – Almost constant noise, sound never stops.
+11. Playful – Cartoonish, whimsical, exaggerated sound cues.
+12. Horror – Emphasis on eerie, unsettling, tense effects.
+13. Action-Packed – Explosions, clashes, urgent noises dominate.
+14. Romantic – Gentle soundscapes with soft, warm cues.
+15. Balanced Mix – A steady, natural blend of background and foreground SFX.
+16. No Sound – Skips sound tags entirely, only emotion tagging.
