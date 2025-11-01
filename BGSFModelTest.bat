@@ -1,0 +1,2 @@
+python BGSFModelTest.py
+pause
