@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Narrify</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="./node_modules/jszip/dist/jszip.min.js"></script>
+    <script src="./node_modules/epubjs/dist/epub.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+</head>
+<body>
+
+    <div class="modal-overlay" id="upload-modal-overlay">
+        <div class="modal-content" id="upload-modal-content">
+            <h2>Upload Book</h2>
+            <div class="drop-zone" id="drop-zone">
+                <div class="drop-zone-icon">
+                    <div class="cloud-icon">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M11 15h2V9h3l-4-5-4 5h3z"></path>
+                            <path d="M20 18H4v-7H2v7c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2v-7h-2v7z"></path>
+                        </svg>
+                    </div>
+                </div>
+                Drag & drop files or <a href="#" id="browse-link">Browse</a>
+                <span class="drop-zone-support">Supported formats: EPUB, PDF, DOCX, ODT</span>
+            </div>
+            <div class="upload-list-container"></div>
+            <div class="form-group">
+                <label for="book-title">Title</label>
+                <input type="text" id="book-title">
+            </div>
+            <div class="form-group">
+                <label for="book-author">Author</label>
+                <input type="text" id="book-author">
+            </div>
+            <div class="form-group">
+                <label for="book-year">Year Published</label>
+                <input type="text" id="book-year">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancel-upload-btn">CANCEL</button>
+                <button class="btn btn-primary" id="confirm-upload-btn">UPLOAD BOOK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="main-content-area">
+        <header class="header">
+            <h1>Bookshelf</h1>
+            <button class="add-book-btn" id="add-book">
+                <span>+</span> ADD BOOK
+            </button>
+        </header>
+
+        <main class="bookshelf-container">
+            <div class="bookshelf-grid" id="bookshelf-grid">
+                </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="delete-modal-overlay">
+        <div class="delete-modal-content">
+            <h2>Delete Book?</h2>
+            <p>Are you sure you want to delete "<span id="delete-book-title"></span>" from your bookshelf?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancel-delete-btn">CANCEL</button>
+                <button class="btn btn-primary" id="confirm-delete-btn" style="background-color: #ff4d4d;">DELETE</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="book-reader-view" class="hidden">
+        <div class="reader-header">
+            <button class="reader-back-btn" id="reader-back-btn">
+                <span>←</span> BACK
+            </button>
+            <div class="reader-title" id="reader-title">Book Title</div>
+            <div class="reader-controls">
+                </div>
+        </div>
+
+        <div class="reader-content">
+            <div class="reader-page-left" id="reader-page-left">
+                <div class="reader-page-content" id="reader-page-left-content">
+                    <h2>Chapter Title</h2>
+                    <p>Content loading...</p>
+                </div>
+            </div>
+            <div class="reader-page-right" id="reader-page-right">
+                <div class="reader-page-content" id="reader-page-right-content">
+                    <h2>Chapter Title</h2>
+                    <p>Content loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="audio-controls">
+            <div class="audio-control-group">
+                <label>Chapter:</label>
+                <select class="chapter-select" id="chapter-select">
+                    <option>Chapter 1</option>
+                </select>
+            </div>
+
+            <div class="audio-playback-controls">
+                <button class="audio-btn" id="rewind-btn" title="Rewind">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+                </button>
+                <button class="audio-btn play" id="play-pause-btn" title="Play/Pause">▶</button>
+                <button class="audio-btn" id="forward-btn" title="Forward">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
+                </button>
+            </div>
+            
+            <div class="audio-sliders-group">
+                <div class="audio-control-group" id="speed-control-group">
+                    <label>Speed:</label>
+                    <input type="range" id="speed-slider" min="0.5" max="2" step="0.25" value="1">
+                    <span class="speed-value" id="speed-value">1.0x</span>
+                </div>
+                <div class="audio-control-group" id="volume-control-group">
+                    <label>Volume:</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="100">
+                </div>
+            </div>
+        </div>
+        <div class="reader-footer">
+            <div class="reader-nav-controls">
+                <button class="reader-nav-btn" id="prev-page-btn">◀ Previous</button>
+                <span class="page-indicator" id="page-indicator">Page 1 of 10</span>
+                <button class="reader-nav-btn" id="next-page-btn">Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="configure-modal-overlay">
+        <div class="modal-content" id="configure-modal-content">
+            <h2>Configure Audiobook</h2>
+            <div class="configure-layout">
+                <div class="configure-left">
+                    <div class="form-group">
+                        <label>File Uploaded</label>
+                        <input type="text" id="config-file-name" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-book-title">Title</label>
+                        <input type="text" id="config-book-title">
+                    </div>
+                    <div class="form-group">
+                        <label for="config-book-author">Author</label>
+                        <input type="text" id="config-book-author">
+                    </div>
+                    <div class="form-group">
+                        <label for="config-book-year">Year Published</label>
+                        <input type="text" id="config-book-year">
+                    </div>
+                    <div class="form-group config-cover-section">
+                        <label>Book Cover</label>
+                        <div id="config-cover-preview"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-persona">Narrator Persona</label>
+                        <select id="config-persona">
+                            <option value="">Select persona</option>
+                            <option value="overemotional">Overemotional</option>
+                            <option value="calm">Calm</option>
+                            <option value="serious">Serious</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-voice">Narrator Voice</label>
+                        <select id="config-voice">
+                            <option value="">Select voice</option>
+                            <option value="voice1">Voice 1 (Male, Deep)</option>
+                            <option value="voice2">Voice 2 (Female, Clear)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-sfx-intensity">Sound Effect(s) Intensity</label>
+                        <select id="config-sfx-intensity">
+                            <option value="">Select intensity</option>
+                            <option value="cinematic">Cinematic</option>
+                            <option value="subtle">Subtle</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-narrator-speed">Narrator Speed</label>
+                        <select id="config-narrator-speed">
+                            <option value="1.0">1.0x (Normal)</option>
+                            <option value="0.75">0.75x</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="configure-right">
+                    <div class="preview-header">
+                        <label>Preview - Page <span id="preview-page-number">1</span></label>
+                        <div class="preview-navigation">
+                            <button class="preview-nav-btn" id="preview-prev-btn" disabled>&lt; Previous</button>
+                            <span class="preview-page-info"><span id="preview-current-page">1</span> / <span id="preview-total-pages">1</span></span>
+                            <button class="preview-nav-btn" id="preview-next-btn">Next &gt;</button>
+                        </div>
+                    </div>
+                    <div class="preview-pane" id="preview-pane">
+                        <h3>CHAPTER 1</h3>
+                        <p>Loading preview...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancel-configure-btn">CANCEL</button>
+                <button class="btn btn-tertiary" id="back-configure-btn">BACK</button>
+                <button class="btn btn-primary" id="generate-audiobook-btn">GENERATE AUDIOBOOK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="generating-modal-overlay">
+        <div class="modal-content-simple" id="generating-modal-content">
+            <h2>Generating....</h2>
+            <div class="progress-bar-container" style="height: 10px; margin-top: 15px;">
+                <div class="progress-bar blue" id="generation-progress" style="width: 0%;"></div>
+            </div>
+            <span id="generation-status" style="font-size: 14px; margin-top: 10px; display: block;">
+                15 Seconds remaining
+            </span>
+            <div class="modal-buttons" style="margin-top: 25px;">
+                <button class="btn btn-secondary" id="cancel-generation-btn">CANCEL</button>
+                <button class="btn btn-tertiary" id="back-generation-btn" disabled>BACK</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="complete-modal-overlay">
+        <div class="modal-content-simple" id="complete-modal-content">
+            <h2 style="color: #28a745;">Complete!</h2>
+            <div class="modal-buttons" style="margin-top: 25px; justify-content: center;">
+                <button class="btn btn-primary" id="add-to-bookshelf-btn">ADD TO BOOKSHELF</button>
+                <button class="btn btn-primary" id="listen-now-btn" style="background-color: #28a745;">LISTEN & READ NOW</button>
+            </div>
+        </div>
+    </div>
+
+<script src="renderer.js" defer></script>
+
+</body>
+</html>
