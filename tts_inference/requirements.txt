@@ -1,0 +1,11 @@
+transformers
+snac
+scipy
+noisereduce
+tqdm
+soundfile
+numpy
+torch
+tokenizer
+accelerate
+huggingface-hub
