@@ -1,0 +1,2 @@
+python GUITest.py
+pause
