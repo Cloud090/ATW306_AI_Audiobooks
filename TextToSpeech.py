@@ -104,7 +104,7 @@ def _combine_wavs(folder):
 
 def preload_model(
     local_model_path="models/orpheus_merged_cremad_full_fp16_mspk",
-    hf_repo_id="Smallan/orpheus_merged_cremad_full_fp16_mspk"
+    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5"
 ):
     global _MODEL, _TOKENIZER, _SNAC
 
