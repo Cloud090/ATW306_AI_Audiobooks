@@ -1,0 +1,2 @@
+python SFXModuleTest.py
+pause
