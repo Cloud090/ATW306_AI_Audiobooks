@@ -45,14 +45,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mainContentArea = document.getElementById('main-content-area');
     const readerBackBtn = document.getElementById('reader-back-btn');
     const readerTitle = document.getElementById('reader-title');
+    const readerMetadata = document.getElementById('reader-metadata');
+    const readerHeader = document.querySelector('.reader-header');
+    const readerHeaderTrigger = document.querySelector('.reader-header-trigger'); // The hover zone
     const readerPageLeftContent = document.getElementById('reader-page-left-content');
     const readerPageRightContent = document.getElementById('reader-page-right-content');
     const prevPageBtn = document.getElementById('prev-page-btn');
     const nextPageBtn = document.getElementById('next-page-btn');
     const pageIndicator = document.getElementById('page-indicator');
     
-    // *** UPDATED ***
-    const audioControlsBar = document.querySelector('.audio-controls'); // Get the whole bar
+    // Audio Controls
+    const audioControlsBar = document.querySelector('.audio-controls'); 
     const playPauseBtn = document.getElementById('play-pause-btn');
     const rewindBtn = document.getElementById('rewind-btn');
     const forwardBtn = document.getElementById('forward-btn');
@@ -60,6 +63,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const volumeSlider = document.getElementById('volume-slider');
     const speedValue = document.getElementById('speed-value');
     const chapterSelect = document.getElementById('chapter-select');
+    const pageSelect = document.getElementById('page-select');
+    const pageSelectGroup = document.getElementById('page-select-group');
+    const autoTurnBtn = document.getElementById('auto-turn-btn');
 
     // === STATE VARIABLES ===
     let selectedFilePath = null;
@@ -74,36 +80,210 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reader state
     let currentReaderBook = null;
     let currentChapters = [];
+    let currentChapterTitles = [];
     let currentChapterIndex = 0;
-    let totalWordCount = 0;
-    let wordsRead = 0;
+    let currentPageIndex = 0;
+    let totalPages = 0;
     let isPlaying = false;
     let bookToDelete = null;
-    let currentAudio = null; // *** NEW: For audio playback
+    let currentAudio = null;
+    let timestamps = null;
+    let wordsArray = [];
+    let currentWordIndex = 0;
+    let updateInterval = null;
+    let autoTurnEnabled = false;
+    let pageTimestamps = []; // Stores which audio time corresponds to which page
+    let headerAutoHideTimeout = null;
 
-    // === DATABASE FUNCTIONS ===
+    // === HEADER VISIBILITY LOGIC ===
+    // This handles the behaviour where the header shows on open, hides after 10s,
+    // and reappears when hovering the top-left corner.
+    
+    function showHeader() {
+        readerHeader.classList.add('visible');
+        
+        // Clear existing timeout if any, so it doesn't hide abruptly
+        if (headerAutoHideTimeout) {
+            clearTimeout(headerAutoHideTimeout);
+            headerAutoHideTimeout = null;
+        }
+    }
+
+    function hideHeader() {
+        // Remove the class that gives it opacity
+        readerHeader.classList.remove('visible');
+    }
+
+    function initialiseHeaderVisibility() {
+        // Show immediately upon opening
+        showHeader();
+        
+        // Hide after 10 seconds of inactivity
+        headerAutoHideTimeout = setTimeout(() => {
+            hideHeader();
+        }, 10000); // 10 seconds
+    }
+
+    // Set up hover listeners for the trigger zone
+    if (readerHeaderTrigger) {
+        readerHeaderTrigger.addEventListener('mouseenter', showHeader);
+        readerHeaderTrigger.addEventListener('mouseleave', () => {
+            // Only hide if we aren't also hovering the header itself
+            // We give a small delay to allow moving mouse from trigger to header
+            headerAutoHideTimeout = setTimeout(() => {
+                // Check if mouse is over header? (CSS hover handles keeping it open slightly, but JS is safer)
+                if (!readerHeader.matches(':hover')) {
+                    hideHeader();
+                }
+            }, 500); 
+        });
+    }
+
+    // Also keep header open if hovering the header itself (e.g. to click Back)
+    readerHeader.addEventListener('mouseenter', showHeader);
+    readerHeader.addEventListener('mouseleave', () => {
+        // Hide shortly after leaving the header
+        headerAutoHideTimeout = setTimeout(hideHeader, 1000);
+    });
+
+    // === PDF CHAPTER DETECTION ===
+    function detectPdfChapters(pdf) {
+        return new Promise(async (resolve) => {
+            const chapterPatterns = [
+                /^chapter\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|[ivxlcdm]+)/i,
+                /^part\s+(\d+|one|two|three|four|five|[ivxlcdm]+)/i,
+                /^section\s+(\d+|one|two|[ivxlcdm]+)/i,
+                /^book\s+(\d+|one|two|three|[ivxlcdm]+)/i,
+                /^(\d+)\.\s+[A-Z]/,  // "1. Introduction"
+                /^[ivxlcdm]+\.\s+[A-Z]/i  // "I. Introduction"
+            ];
+            
+            const detectedChapters = [];
+            
+            try {
+                for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 200); pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    
+                    let pageText = '';
+                    for (const item of textContent.items) {
+                        pageText += item.str + ' ';
+                    }
+                    
+                    // Check first few lines for chapter indicators
+                    const lines = pageText.split('\n').slice(0, 5);
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.length > 0 && trimmed.length < 100) {
+                            for (const pattern of chapterPatterns) {
+                                if (pattern.test(trimmed)) {
+                                    detectedChapters.push({
+                                        pageNum: pageNum,
+                                        title: trimmed.substring(0, 50) // Limit title length
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Error detecting chapters:', error);
+            }
+            
+            resolve(detectedChapters);
+        });
+    }
+
+    // === AUTO-TURN PAGE FUNCTIONALITY ===
+    function setupAutoTurn() {
+        if (!currentAudio || !autoTurnEnabled) return;
+        
+        // Calculate page timestamps if not provided by API
+        // This maps audio time to specific page pairs
+        if (!pageTimestamps || pageTimestamps.length === 0) {
+            calculatePageTimestamps();
+        }
+    }
+
+    function calculatePageTimestamps() {
+        if (!currentAudio || !currentChapters.length) return;
+        
+        const duration = currentAudio.duration;
+        // The reader displays 2 pages at a time, so we group them
+        const numPagePairs = Math.ceil(currentChapters.length / 2);
+        
+        pageTimestamps = [];
+        
+        // Estimate words per page to distribute time proportionally
+        const wordsPerPage = currentChapters.map((chapter, index) => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = chapter;
+            const text = tempDiv.textContent || '';
+            const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+            return { pageIndex: index, wordCount: wordCount };
+        });
+        
+        const totalWords = wordsPerPage.reduce((sum, page) => sum + page.wordCount, 0);
+        
+        let accumulatedTime = 0;
+        for (let i = 0; i < numPagePairs; i++) {
+            const leftPageIndex = i * 2;
+            const rightPageIndex = i * 2 + 1;
+            
+            // Get word counts for this pair (left + right page)
+            const leftWords = wordsPerPage[leftPageIndex]?.wordCount || 0;
+            const rightWords = wordsPerPage[rightPageIndex]?.wordCount || 0;
+            const pairWords = leftWords + rightWords;
+            
+            // Allocate time based on how much text is on these two pages
+            const pairDuration = (pairWords / totalWords) * duration;
+            
+            pageTimestamps.push({
+                pageIndex: leftPageIndex, // The index we use to load the pair
+                startTime: accumulatedTime,
+                endTime: accumulatedTime + pairDuration,
+                wordCount: pairWords
+            });
+            
+            accumulatedTime += pairDuration;
+        }
+        
+        console.log('Calculated page timestamps:', pageTimestamps);
+    }
+
+    function checkAutoTurnPage() {
+        if (!autoTurnEnabled || !currentAudio || !pageTimestamps.length) return;
+        
+        const currentTime = currentAudio.currentTime;
+        
+        // Find which page pair corresponds to the current time
+        const currentPairTimestamp = pageTimestamps.find(ts => 
+            currentTime >= ts.startTime && currentTime < ts.endTime
+        );
+        
+        if (currentPairTimestamp) {
+            // We found the correct page pair for this time.
+            // If we are NOT currently on this page, turn to it.
+            if (currentChapterIndex !== currentPairTimestamp.pageIndex) {
+                console.log(`Auto-turning to page pair starting at ${currentPairTimestamp.pageIndex + 1}`);
+                loadChapter(currentPairTimestamp.pageIndex);
+            }
+        }
+    }
+
+    // === DATABASE & BOOKSHELF FUNCTIONS ===
     async function loadBooksFromDatabase() {
         try {
             console.log('Loading books from database...');
             const books = await window.electronAPI.getBooksFromDb();
-            console.log('Books retrieved from DB:', books);
-            
             const bookshelfGrid = document.getElementById('bookshelf-grid');
             bookshelfGrid.innerHTML = '';
             
             if (books.length === 0) {
                 showEmptyState();
             } else {
-                books.forEach((book, index) => {
-                    console.log(`Adding book ${index + 1}:`, {
-                        title: book.title,
-                        author: book.author,
-                        filePath: book.filePath,
-                        coverUrl: book.coverUrl ? 'Has cover' : 'No cover',
-                        progress: book.progress,
-                        audioPath: book.audioPath ? 'Has audio' : 'No audio' // Log audio path
-                    });
-                    
+                books.forEach((book) => {
                     addBookToBookshelf(
                         book.title,
                         book.author,
@@ -112,7 +292,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         book.progress || 0,
                         book.id,
                         book.filePath
-                        // Note: book object passed to openBookReader will have audioPath
                     );
                 });
             }
@@ -123,6 +302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showEmptyState() {
         const bookshelfGrid = document.getElementById('bookshelf-grid');
+        // Ensure CSS centres this correctly (see styles.css .empty-state)
         bookshelfGrid.innerHTML = `
             <div class="empty-state">
                 <p class="empty-state-text">No books in bookshelf, click Add Book below to add your first</p>
@@ -131,27 +311,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </button>
             </div>
         `;
-        
         document.getElementById('add-book-empty').addEventListener('click', openUploadModal);
     }
 
     async function saveBookToDatabase(book) {
         try {
-            console.log('Attempting to save book to database:', book);
-            
             if (!book.filePath) {
-                console.error('Book has no filePath!');
                 alert('Cannot save book: file path is missing');
                 return;
             }
-            
-            // *** UPDATED ***: Pass the full book object, which includes audioPath
             const result = await window.electronAPI.addBookToDb(book);
-            console.log('Database save result:', result);
-            
-            if (result.success) {
-                console.log('Book saved to database successfully with ID:', result.id);
-            } else {
+            if (!result.success) {
                 console.error('Failed to save book:', result.error);
                 alert('Failed to save book: ' + result.error);
             }
@@ -161,36 +331,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // === BOOKSHELF FUNCTIONS ===
     function addBookToBookshelf(title, author, year, coverUrl, progress = 0, bookId = null, filePath = null) {
-        console.log('Adding book to shelf:', { title, author, bookId, filePath, progress });
-        
         const bookshelfGrid = document.getElementById('bookshelf-grid');
         const bookItem = document.createElement('div');
         bookItem.className = 'book-item';
         bookItem.dataset.bookId = bookId;
-        bookItem.dataset.filePath = filePath;
-        bookItem.dataset.title = title;
-        bookItem.dataset.author = author;
-        bookItem.dataset.year = year;
-        bookItem.dataset.coverUrl = coverUrl || '';
-        bookItem.dataset.progress = progress;
         
-        // This line ensures the correct format: "Author - year" if year exists
         const authorYearText = (author && year) ? `${author} - ${year}` : (author || 'Unknown Author');
         
         let progressClass = 'yellow';
         let progressText = 'UNREAD';
-        let progressWidth = 100;
+        let progressWidth = 0;
         
         if (progress > 0 && progress < 100) {
             progressClass = 'blue';
             progressText = `${Math.round(progress)}%`;
             progressWidth = progress;
-        } else if (progress === 100) {
+        } else if (progress >= 100) {
             progressClass = 'green';
             progressText = 'READ';
             progressWidth = 100;
+        } else if (progress === 0) {
+             progressWidth = 100;
         }
         
         const deleteIconSVG = `
@@ -219,22 +381,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             
-            const bookFilePath = filePath || bookItem.dataset.filePath;
-            
-            if (bookFilePath && bookFilePath !== 'null' && bookFilePath !== 'undefined' && bookFilePath !== '') {
-                
-                // *** UPDATED ***: We need the full book object from DB, esp. audioPath
-                const books = await window.electronAPI.getBooksFromDb();
-                const bookData = books.find(b => b.id === bookId);
+            const books = await window.electronAPI.getBooksFromDb();
+            const bookData = books.find(b => b.id === bookId);
 
-                if (bookData) {
-                    console.log('Opening book with data:', bookData);
-                    openBookReader(bookData);
-                } else {
-                     alert('Error: Could not find book data.');
-                }
+            if (bookData) {
+                openBookReader(bookData);
             } else {
-                alert('Cannot open book: file path is missing. The book may need to be re-uploaded.');
+                 alert('Error: Could not find book data.');
             }
         });
         
@@ -245,7 +398,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         bookshelfGrid.appendChild(bookItem);
-        bookshelfGrid.parentElement.scrollLeft = bookshelfGrid.scrollWidth;
     }
 
     function openDeleteModal(bookId, title) {
@@ -264,16 +416,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const result = await window.electronAPI.deleteBook(bookToDelete);
                 if (result.success) {
-                    console.log('Book deleted successfully');
                     closeDeleteModal();
                     await loadBooksFromDatabase();
                 } else {
-                    console.error('Failed to delete book:', result.error);
                     alert('Failed to delete book. Please try again.');
                 }
             } catch (error) {
                 console.error('Error deleting book:', error);
-                alert('Error deleting book. Please try again.');
             }
         }
     }
@@ -300,10 +449,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function openConfigureModal(filePath, title, author, year) {
-        console.log('Opening configure modal with filePath:', filePath);
-        
         selectedFilePath = filePath;
-        
         const filename = filePath.split(/[\\/]/).pop();
         document.getElementById('config-file-name').value = filename;
         document.getElementById('config-book-title').value = title;
@@ -334,7 +480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function openGeneratingModal() {
         generationCancelled = false;
         generationProgress.style.width = '0%';
-        generationStatus.textContent = 'Starting generation...';
+        generationStatus.textContent = 'Connecting to AI Model...';
         generatingModalOverlay.classList.add('visible');
     }
     
@@ -365,7 +511,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadBookPreview(filePath) {
-        console.log('Loading preview for:', filePath);
         configCoverPreview.innerHTML = '';
         configCoverPreview.style.backgroundImage = '';
         previewPane.innerHTML = '<p>Loading preview...</p>';
@@ -375,21 +520,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         generatedCoverUrl = null;
         
         const extension = filePath.split('.').pop().toLowerCase();
-        console.log('File extension:', extension);
         
         try {
             if (extension === 'epub') {
                 await loadEpubPreview(filePath);
             } else if (extension === 'pdf') {
                 await loadPdfPreview(filePath);
-            } else if (extension === 'docx' || extension === 'doc') {
-                await loadDocxPreview(filePath);
-            } else if (extension === 'odt') {
-                await loadOdtPreview(filePath);
             } else {
                 previewPane.classList.add('fallback-preview');
-                previewPane.innerHTML = '<h3>Preview Not Available</h3><p>Unsupported file format.</p>';
-                configCoverPreview.style.backgroundColor = '#555';
+                previewPane.innerHTML = '<h3>Preview Not Available</h3><p>Unsupported file format for preview.</p>';
             }
         } catch (error) {
             console.error('Error loading preview:', error);
@@ -403,175 +542,104 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadEpubPreview(filePath) {
         previewPane.classList.add('epub-preview');
-        
         try {
-            const arrayBuffer = await window.electronAPI.readFileBuffer(filePath);
-            currentBook = ePub(arrayBuffer);
-
-            const metadata = await currentBook.loaded.metadata;
+            const result = await window.electronAPI.epubParse(filePath);
             
-            if (metadata.cover) {
-                const coverUrl = await currentBook.coverUrl(); 
-                if (coverUrl) {
-                    try {
-                        const response = await fetch(coverUrl);
-                        const blob = await response.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            generatedCoverUrl = reader.result;
-                            configCoverPreview.style.backgroundImage = `url(${generatedCoverUrl})`;
-                            configCoverPreview.style.backgroundSize = 'cover';
-                            configCoverPreview.style.backgroundPosition = 'center';
-                        };
-                        reader.readAsDataURL(blob);
-                    } catch (e) {
-                        console.error('Error converting cover to base64:', e);
-                        configCoverPreview.style.backgroundColor = '#555';
-                    }
-                } else {
-                    configCoverPreview.style.backgroundColor = '#555';
-                }
-            } else {
-                configCoverPreview.style.backgroundColor = '#555';
+            // Set cover if available
+            if (result.coverUrl) {
+                generatedCoverUrl = result.coverUrl;
+                configCoverPreview.style.backgroundImage = `url(${generatedCoverUrl})`;
+                configCoverPreview.style.backgroundSize = 'cover';
+                configCoverPreview.style.backgroundPosition = 'center';
             }
             
-            await currentBook.ready;
-            
-            const sectionsToLoad = Math.min(5, currentBook.spine.length);
-            
-            for (let i = 0; i < sectionsToLoad; i++) {
-                const section = currentBook.spine.get(i);
-                if (section) {
-                    const tempDiv = document.createElement('div');
-                    await section.render(tempDiv); 
-                    
-                    const paragraphs = Array.from(tempDiv.querySelectorAll('p'));
-                    const chapterTitle = tempDiv.querySelector('h1, h2, h3');
-                    
-                    let pageHTML = '';
-                    if (chapterTitle) {
-                        pageHTML += `<h3>${chapterTitle.textContent}</h3>`;
-                    }
-                    
-                    paragraphs.slice(0, 15).forEach(p => {
-                        if (p.textContent.trim()) {
-                            pageHTML += `<p>${p.textContent}</p>`;
-                        }
-                    });
-                    
-                    bookPages.push(pageHTML || '<p>No content available.</p>');
-                }
+            // Load preview pages
+            const chaptersToPreview = Math.min(5, result.chapters.length);
+            for (let i = 0; i < chaptersToPreview; i++) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = result.chapters[i];
+                
+                const chapterTitle = result.chapterTitles ? result.chapterTitles[i] : `Chapter ${i + 1}`;
+                const paragraphs = Array.from(tempDiv.querySelectorAll('p'));
+                
+                let pageHTML = `<h3>${chapterTitle}</h3>`;
+                paragraphs.slice(0, 15).forEach(p => {
+                    if (p.textContent.trim()) pageHTML += `<p>${p.textContent}</p>`;
+                });
+                
+                bookPages.push(pageHTML || '<p>No content available.</p>');
             }
             
             totalPreviewPages = bookPages.length || 1;
             updatePreviewNavigation();
 
         } catch (error) {
-            console.error('Error loading EPUB:', error);
-            previewPane.classList.remove('epub-preview');
-            previewPane.classList.add('fallback-preview');
-            previewPane.innerHTML = `<h3>Error</h3><p>Could not read EPUB file. It may be corrupted or protected.</p>`;
-            bookPages = [`<h3>Error</h3><p>Could not read EPUB file.</p>`];
-            totalPreviewPages = 1;
-            updatePreviewNavigation();
+            throw error;
         }
     }
 
     async function loadPdfPreview(filePath) {
         try {
             previewPane.classList.add('pdf-preview');
-            configCoverPreview.style.backgroundColor = '#555';
-            previewPane.innerHTML = '<p style="text-align: center; font-family: system-ui; text-indent: 0;">Loading PDF preview...</p>';
-            
             const arrayBuffer = await window.electronAPI.readFileBuffer(filePath);
             const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
             const pdf = await loadingTask.promise;
-            
-            console.log(`PDF loaded: ${pdf.numPages} pages`);
             
             const pagesToLoad = Math.min(5, pdf.numPages);
             bookPages = [];
             
             for (let pageNum = 1; pageNum <= pagesToLoad; pageNum++) {
                 const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 1.0 });
                 
-                const desiredWidth = 800; 
-                let viewport = page.getViewport({ scale: 1.0 });
-                const scale = desiredWidth / viewport.width;
-                viewport = page.getViewport({ scale: scale });
+                // High quality rendering - 3x scale
+                const scale = (800 / viewport.width) * 3;
+                const scaledViewport = page.getViewport({ scale: scale });
 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
+                canvas.height = scaledViewport.height;
+                canvas.width = scaledViewport.width;
                 
-                await page.render({
-                    canvasContext: context,
-                    viewport: viewport
+                await page.render({ 
+                    canvasContext: context, 
+                    viewport: scaledViewport,
+                    intent: 'print'
                 }).promise;
                 
-                const dataUrl = canvas.toDataURL();
-                bookPages.push(`<img src="${dataUrl}" alt="Page ${pageNum}">`);
+                bookPages.push(`<img src="${canvas.toDataURL('image/png')}" alt="Page ${pageNum}" style="max-width: 100%; height: auto;">`);
             }
 
+            // Render Cover at high quality
             const firstPage = await pdf.getPage(1);
-            const coverViewport = firstPage.getViewport({ scale: 1.0 });
+            const coverViewport = firstPage.getViewport({ scale: 3.0 }); // High quality
             const coverCanvas = document.createElement('canvas');
             const coverContext = coverCanvas.getContext('2d');
             coverCanvas.height = coverViewport.height;
             coverCanvas.width = coverViewport.width;
-            
-            await firstPage.render({
-                canvasContext: coverContext,
-                viewport: coverViewport
+            await firstPage.render({ 
+                canvasContext: coverContext, 
+                viewport: coverViewport,
+                intent: 'print'
             }).promise;
             
-            const coverDataUrl = coverCanvas.toDataURL();
-            configCoverPreview.style.backgroundImage = `url(${coverDataUrl})`;
+            generatedCoverUrl = coverCanvas.toDataURL('image/png');
+            configCoverPreview.style.backgroundImage = `url(${generatedCoverUrl})`;
             configCoverPreview.style.backgroundSize = 'cover';
             configCoverPreview.style.backgroundPosition = 'center';
-            generatedCoverUrl = coverDataUrl;
             
             totalPreviewPages = bookPages.length || 1;
             currentPreviewPage = 0;
             updatePreviewNavigation();
             
         } catch (error) {
-            console.error('Error loading PDF:', error);
-            previewPane.classList.remove('pdf-preview');
-            previewPane.classList.add('fallback-preview');
-            previewPane.innerHTML = '<h3>Error Loading PDF</h3><p>Could not read PDF file. It may be corrupted or protected.</p>';
-            configCoverPreview.style.backgroundColor = '#555';
-            bookPages = ['<h3>Error Loading PDF</h3><p>Could not read PDF file.</p>'];
-            totalPreviewPages = 1;
-            updatePreviewNavigation();
+            throw error;
         }
-    }
-
-    async function loadDocxPreview(filePath) {
-        previewPane.classList.add('fallback-preview');
-        configCoverPreview.style.backgroundColor = '#555';
-        previewPane.innerHTML = '<h3>DOCX Preview</h3><p>Word document preview requires additional library support.</p>';
-        bookPages = ['<h3>DOCX Preview</h3><p>Word document preview requires additional library support.</p>'];
-        totalPreviewPages = 1;
-        updatePreviewNavigation();
-    }
-
-    async function loadOdtPreview(filePath) {
-        previewPane.classList.add('fallback-preview');
-        configCoverPreview.style.backgroundColor = '#555';
-        previewPane.innerHTML = '<h3>ODT Preview</h3><p>OpenDocument preview requires additional library support.</p>';
-        bookPages = ['<h3>ODT Preview</h3><p>OpenDocument preview requires additional library support.</p>'];
-        totalPreviewPages = 1;
-        updatePreviewNavigation();
     }
 
     // === BOOK READER FUNCTIONS ===
     async function openBookReader(book) {
-        console.log('Opening book reader with book data:', book);
-        
         if (!book || !book.filePath) {
-            console.error('Invalid book data:', book);
             alert('Cannot open book: invalid book data');
             return;
         }
@@ -581,167 +649,190 @@ document.addEventListener('DOMContentLoaded', async () => {
         readerView.classList.remove('hidden');
         
         readerTitle.textContent = book.title || 'Untitled Book';
+        
+        // Format metadata: "Author • Year" or handle unknowns
+        const author = book.author || 'Unknown Author';
+        const year = book.year && book.year !== 'N/A' ? book.year : '';
+        readerMetadata.textContent = year ? `${author} • ${year}` : author;
+        
         readerPageLeftContent.innerHTML = '<p>Loading...</p>';
         readerPageRightContent.innerHTML = '<p>Loading...</p>';
         
+        // Initialise the header visibility logic (shows for 10s then hides)
+        initialiseHeaderVisibility();
+        
         try {
             const extension = book.filePath.split('.').pop().toLowerCase();
-            console.log('Book file extension:', extension);
             
             if (extension === 'epub') {
-                console.log('Parsing EPUB...');
+                pageSelectGroup.style.display = 'none'; // EPUBs don't need page dropdown
                 const result = await window.electronAPI.epubParse(book.filePath);
                 currentChapters = result.chapters || [];
+                currentChapterTitles = result.chapterTitles || [];
             } else if (extension === 'pdf') {
-                console.log('Loading PDF...');
                 await loadPdfForReading(book.filePath);
-                // PDF function will call loadChapter, so we return here
-            } else {
-                 currentChapters = ['<h2>Unsupported Format</h2><p>This file format is not supported for reading. Please use EPUB or PDF.</p>'];
+                return; // PDF function handles the rest
+            } 
+            
+            if (currentChapters.length === 0) currentChapters = ['<p>No content extracted.</p>'];
+            if (currentChapterTitles.length === 0) {
+                currentChapterTitles = currentChapters.map((_, i) => `Chapter ${i + 1}`);
             }
             
-            if (extension !== 'pdf') {
-                if (currentChapters.length === 0) {
-                    currentChapters = ['<p>No content could be extracted from this book.</p>'];
-                }
+            // Populate chapter dropdown
+            chapterSelect.innerHTML = '';
+            currentChapterTitles.forEach((title, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = title;
+                chapterSelect.appendChild(option);
+            });
+            
+            // Load saved position or start at beginning
+            currentChapterIndex = book.currentPage || 0;
+            loadChapter(currentChapterIndex);
 
-                // Calculate total word count
-                totalWordCount = currentChapters.reduce((total, chapter) => {
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = chapter;
-                    const words = (tempDiv.textContent || '').split(/\s+/).filter(w => w.length > 0).length;
-                    return total + words;
-                }, 0);
-                
-                console.log('Total word count:', totalWordCount);
-                
-                // Populate chapter selector
-                chapterSelect.innerHTML = '';
-                currentChapters.forEach((_, index) => {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = `Chapter ${index + 1}`;
-                    chapterSelect.appendChild(option);
-                });
-                
-                loadChapter(0);
-            }
-
-            // Load Audio
+            // Load Audio with timestamps
             if (book.audioPath) {
-                console.log('Loading audio from:', book.audioPath);
-                audioControlsBar.style.display = 'flex'; // Show controls
-                
-                try {
-                    const audioDataUrl = await window.electronAPI.readAudioFile(book.audioPath);
-                    currentAudio = new Audio(audioDataUrl);
-                    
-                    // Set initial values
-                    currentAudio.playbackRate = parseFloat(speedSlider.value);
-                    currentAudio.volume = parseFloat(volumeSlider.value) / 100;
-                    
-                    // Sync with saved progress
-                    currentAudio.addEventListener('loadedmetadata', () => {
-                        if (currentReaderBook.progress > 0 && currentAudio.duration) {
-                            currentAudio.currentTime = (currentReaderBook.progress / 100) * currentAudio.duration;
-                        }
-                    });
-
-                    // Add listeners
-                    currentAudio.addEventListener('timeupdate', updateAudioProgress);
-                    currentAudio.addEventListener('ended', () => {
-                        isPlaying = false;
-                        playPauseBtn.innerHTML = '▶';
-                    });
-
-                } catch (audioError) {
-                    console.error('Error loading audio file:', audioError);
-                    audioControlsBar.style.display = 'none'; // Hide controls if audio fails
-                }
-
+                loadAudioWithTimestamps(book);
             } else {
-                console.log('No audio path for this book.');
-                audioControlsBar.style.display = 'none'; // Hide controls
+                audioControlsBar.style.display = 'none';
             }
             
         } catch (error) {
             console.error('Error opening book reader:', error);
             readerPageLeftContent.innerHTML = `<p>Error loading book: ${error.message}</p>`;
-            readerPageRightContent.innerHTML = `<p>Error loading book: ${error.message}</p>`;
+        }
+    }
+
+    // Export these functions so they can be used in the main renderer.js
+    window.detectPdfChapters = detectPdfChapters;
+    window.loadPdfForReading = loadPdfForReading;
+    window.setupAutoTurn = setupAutoTurn;
+    window.calculatePageTimestamps = calculatePageTimestamps;
+    window.checkAutoTurnPage = checkAutoTurnPage;
+    window.showHeader = showHeader;
+    window.hideHeader = hideHeader;
+    window.initialiseHeaderVisibility = initialiseHeaderVisibility;
+    window.openBookReader = openBookReader;
+
+    async function loadAudioWithTimestamps(book) {
+        audioControlsBar.style.display = 'flex';
+        try {
+            const audioDataUrl = await window.electronAPI.readAudioFile(book.audioPath);
+            currentAudio = new Audio(audioDataUrl);
+            currentAudio.playbackRate = parseFloat(speedSlider.value);
+            currentAudio.volume = parseFloat(volumeSlider.value) / 100;
+            
+            // Parse timestamps if available
+            if (book.timestamps) {
+                try {
+                    timestamps = JSON.parse(book.timestamps);
+                    console.log('Loaded timestamps:', timestamps);
+                } catch (e) {
+                    console.error('Failed to parse timestamps:', e);
+                }
+            }
+            
+            // Load to saved position
+            currentAudio.addEventListener('loadedmetadata', () => {
+                if (book.progress > 0 && currentAudio.duration) {
+                    currentAudio.currentTime = (book.progress / 100) * currentAudio.duration;
+                }
+                // Once metadata is loaded, we can calculate page durations
+                calculatePageTimestamps();
+            });
+
+            currentAudio.addEventListener('timeupdate', updateAudioProgress);
+            currentAudio.addEventListener('ended', () => {
+                isPlaying = false;
+                playPauseBtn.innerHTML = '▶';
+            });
+        } catch (audioError) {
+            console.error('Error loading audio file:', audioError);
+            audioControlsBar.style.display = 'none';
         }
     }
 
     async function loadPdfForReading(filePath) {
         try {
-            console.log('Loading PDF for reading:', filePath);
-            
-            const availableWidth = (readerPageLeftContent.parentElement.offsetWidth * 0.9);
-            console.log(`PDF render width: ${availableWidth}`);
-
             const arrayBuffer = await window.electronAPI.readFileBuffer(filePath);
             const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
             const pdf = await loadingTask.promise;
             
-            console.log(`PDF loaded: ${pdf.numPages} pages`);
-            
             currentChapters = [];
+            currentChapterTitles = [];
+            
+            // Get the actual viewport dimensions for each page
+            const readerContainer = document.querySelector('.reader-content');
+            const containerWidth = readerContainer.offsetWidth / 2; // Divided by 2 for two-page view
+            const containerHeight = readerContainer.offsetHeight;
             
             for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                 const page = await pdf.getPage(pageNum);
                 
+                // Get original viewport
                 let viewport = page.getViewport({ scale: 1.0 });
-                const scale = availableWidth / viewport.width;
-                viewport = page.getViewport({ scale: scale });
+                
+                // Calculate scale to fit container while maintaining aspect ratio
+                const scaleX = containerWidth / viewport.width;
+                const scaleY = containerHeight / viewport.height;
+                const scale = Math.min(scaleX, scaleY);
+                
+                // Apply HIGH QUALITY scale (3x for crisp rendering)
+                const highQualityScale = scale * 3;
+                viewport = page.getViewport({ scale: highQualityScale });
 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
                 
-                await page.render({
-                    canvasContext: context,
-                    viewport: viewport
+                await page.render({ 
+                    canvasContext: context, 
+                    viewport: viewport,
+                    intent: 'print' // Use print quality
                 }).promise;
                 
-                const dataUrl = canvas.toDataURL();
-                currentChapters.push(`<img src="${dataUrl}" alt="Page ${pageNum}">`);
+                currentChapters.push(`<img src="${canvas.toDataURL('image/png')}" alt="Page ${pageNum}" style="width: 100%; height: 100%; object-fit: contain;">`);
+                
+                // Every 10 pages is a "chapter" for navigation
+                if (pageNum % 10 === 1 || pageNum === 1) {
+                    const endPage = Math.min(pageNum + 9, pdf.numPages);
+                    currentChapterTitles.push(`Pages ${pageNum}-${endPage}`);
+                }
             }
             
-            console.log('PDF pages loaded:', currentChapters.length);
-            
-            // For PDFs, each page is a "chapter"
-            totalWordCount = currentChapters.length * 300; // Estimate 300 words per page
-            
-            // Populate chapter selector (pages in this case)
+            // Populate chapter dropdown (every 10 pages)
             chapterSelect.innerHTML = '';
-            currentChapters.forEach((_, index) => {
-                if (index % 2 === 0) {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    const endPage = (index + 2 <= currentChapters.length) ? `-${index + 2}` : '';
-                    option.textContent = `Pages ${index + 1}${endPage}`;
-                    chapterSelect.appendChild(option);
-                }
-            });
+            for (let i = 0; i < currentChapters.length; i += 10) {
+                const option = document.createElement('option');
+                option.value = i;
+                const endPage = Math.min(i + 10, currentChapters.length);
+                option.textContent = `Pages ${i + 1}-${endPage}`;
+                chapterSelect.appendChild(option);
+            }
             
-            loadChapter(0);
+            currentChapterIndex = currentReaderBook.currentPage || 0;
+            loadChapter(currentChapterIndex);
             
+            // Load audio
+            if (currentReaderBook.audioPath) {
+                loadAudioWithTimestamps(currentReaderBook);
+            } else {
+                audioControlsBar.style.display = 'none';
+            }
         } catch (error) {
-            console.error('Error loading PDF:', error);
-            readerPageLeftContent.innerHTML = `<p>Error loading PDF: ${error.message}</p>`;
-            readerPageRightContent.innerHTML = `<p>Error loading PDF: ${error.message}</p>`;
+            throw error;
         }
     }
 
     function loadChapter(index) {
-        console.log('Loading chapter/page:', index);
-        
         if (index < 0) index = 0;
         if (index >= currentChapters.length && index > 0) index = currentChapters.length - 1;
-        
         currentChapterIndex = index;
-        const chapterHtml = currentChapters[index];
         
+        const chapterHtml = currentChapters[index];
         const isPdfPage = chapterHtml.includes('<img');
         
         if (isPdfPage) {
@@ -750,41 +841,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             readerPageLeftContent.innerHTML = leftPageHtml;
             readerPageRightContent.innerHTML = rightPageHtml;
-            
             readerPageLeftContent.classList.remove('epub-content');
             readerPageRightContent.classList.remove('epub-content');
+            readerPageLeftContent.classList.add('pdf-content');
+            readerPageRightContent.classList.add('pdf-content');
             
-            if (rightPageHtml) {
-                pageIndicator.textContent = `Pages ${index + 1}-${index + 2} of ${currentChapters.length}`;
-            } else {
-                pageIndicator.textContent = `Page ${index + 1} of ${currentChapters.length}`;
-            }
+            if (rightPageHtml) pageIndicator.textContent = `Pages ${index + 1}-${index + 2} of ${currentChapters.length}`;
+            else pageIndicator.textContent = `Page ${index + 1} of ${currentChapters.length}`;
             
             prevPageBtn.disabled = index === 0;
             nextPageBtn.disabled = index + 1 >= currentChapters.length - 1; 
-
         } else {
-            // EPUB/Text: Split content of a single chapter.
+            // EPUB - split content across two pages
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = chapterHtml;
-            
             const allElements = Array.from(tempDiv.children);
             const midPoint = Math.ceil(allElements.length / 2);
             
-            const leftElements = allElements.slice(0, midPoint);
-            const rightElements = allElements.slice(midPoint);
-            
             readerPageLeftContent.innerHTML = '';
-            leftElements.forEach(el => readerPageLeftContent.appendChild(el.cloneNode(true)));
+            allElements.slice(0, midPoint).forEach(el => readerPageLeftContent.appendChild(el.cloneNode(true)));
             
             readerPageRightContent.innerHTML = '';
-            rightElements.forEach(el => readerPageRightContent.appendChild(el.cloneNode(true)));
+            allElements.slice(midPoint).forEach(el => readerPageRightContent.appendChild(el.cloneNode(true)));
 
+            readerPageLeftContent.classList.remove('pdf-content');
+            readerPageRightContent.classList.remove('pdf-content');
             readerPageLeftContent.classList.add('epub-content');
             readerPageRightContent.classList.add('epub-content');
             
-            pageIndicator.textContent = `Chapter ${index + 1} of ${currentChapters.length}`;
-            
+            const chapterTitle = currentChapterTitles[index] || `Chapter ${index + 1}`;
+            pageIndicator.textContent = `${chapterTitle} (${index + 1} of ${currentChapters.length})`;
             prevPageBtn.disabled = index === 0;
             nextPageBtn.disabled = index >= currentChapters.length - 1;
         }
@@ -792,42 +878,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         chapterSelect.value = index;
         readerPageLeftContent.scrollTop = 0;
         readerPageRightContent.scrollTop = 0;
+        
+        // Build words array for highlighting
+        if (!isPdfPage) {
+            buildWordsArray();
+        }
     }
 
-    // audio progress updates
+    function buildWordsArray() {
+        wordsArray = [];
+        const leftText = readerPageLeftContent.innerText || '';
+        const rightText = readerPageRightContent.innerText || '';
+        const fullText = leftText + ' ' + rightText;
+        
+        const words = fullText.split(/\s+/).filter(w => w.length > 0);
+        wordsArray = words;
+        currentWordIndex = 0;
+    }
+
     function updateAudioProgress() {
         if (!currentAudio || !currentAudio.duration) return;
         
-        // Calculate progress percentage
-        const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
-        
-        // Store it on the book object
+        const currentTime = currentAudio.currentTime;
+        const progress = (currentTime / currentAudio.duration) * 100;
         currentReaderBook.progress = progress;
         
-        // Sync 'wordsRead' for non-audio progress tracking
-        wordsRead = Math.floor((progress / 100) * totalWordCount);
+        // Check auto-turn every update to see if we entered a new page range
+        checkAutoTurnPage();
     }
 
     async function updateBookProgress() {
         if (!currentReaderBook) return;
-        
-        // If no audio, it will be set by page turns or see updateAudioProgress
-        const progress = currentReaderBook.progress;
-        
         try {
-            await window.electronAPI.updateBookProgress(currentReaderBook.id, progress);
-            
+            await window.electronAPI.updateBookProgress(
+                currentReaderBook.id, 
+                currentReaderBook.progress,
+                currentChapterIndex
+            );
             const bookItem = document.querySelector(`[data-book-id="${currentReaderBook.id}"]`);
             if (bookItem) {
                 const progressBar = bookItem.querySelector('.progress-bar');
                 const progressText = bookItem.querySelector('.progress-text');
-                
-                const progressClass = getProgressClass(progress);
-                const progressTextContent = getProgressText(progress);
-                
-                progressBar.className = `progress-bar ${progressClass}`;
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = progressTextContent;
+                progressBar.className = `progress-bar ${getProgressClass(currentReaderBook.progress)}`;
+                progressBar.style.width = `${currentReaderBook.progress}%`;
+                progressText.textContent = getProgressText(currentReaderBook.progress);
             }
         } catch (error) {
             console.error('Error updating book progress:', error);
@@ -836,15 +930,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // === UI HELPER FUNCTIONS ===
     function showFileInUI(filePath) {
-        if (!filePath) {
-            console.error('filePath is null or undefined!');
-            alert('Error: No file path provided');
-            return;
-        }
-        
         const filename = filePath.split(/[\\/]/).pop();
         selectedFilePath = filePath;
-        
         dropZone.style.display = 'none';
         uploadList.style.display = 'block';
         uploadFormFields.forEach(field => field.style.display = 'flex');
@@ -852,17 +939,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const title = filename.replace(/\.[^/.]+$/, "");
         document.getElementById('book-title').value = title;
-        document.getElementById('book-author').value = '';
-        document.getElementById('book-year').value = '';
         
         const removeBtn = document.getElementById('remove-file-btn');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', resetUploadUI);
-        }
+        if (removeBtn) removeBtn.addEventListener('click', resetUploadUI);
     }
     
     function resetUploadUI() {
-        console.log('Resetting upload UI');
         selectedFilePath = null;
         dropZone.style.display = 'block';
         uploadList.style.display = 'none';
@@ -873,106 +955,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('book-year').value = '';
     }
 
-    // === EVENT LISTENERS ===
-    
-    addBookBtn.addEventListener('click', openUploadModal);
-    cancelUploadBtn.addEventListener('click', () => {
-        closeUploadModal();
-        resetUploadUI(); 
-    });
-    
-    uploadModalOverlay.addEventListener('click', (event) => {
-        if (event.target === uploadModalOverlay) {
-            closeUploadModal();
-            resetUploadUI();
-        }
-    });
+    function updateGenerationProgress(message, percent) {
+        generationProgress.style.width = `${percent}%`;
+        generationStatus.textContent = message;
+    }
 
-    browseLink.addEventListener('click', async (event) => {
-        event.preventDefault();
-        try {
-            const filePath = await window.electronAPI.openFile();
-            if (filePath) showFileInUI(filePath);
-        } catch (error) {
-            console.error('Error opening file:', error);
-            alert('Error opening file. Please try again.');
-        }
+    // === EVENT LISTENERS ===
+    addBookBtn.addEventListener('click', openUploadModal);
+    cancelUploadBtn.addEventListener('click', () => { closeUploadModal(); resetUploadUI(); });
+    uploadModalOverlay.addEventListener('click', (e) => { if (e.target === uploadModalOverlay) { closeUploadModal(); resetUploadUI(); } });
+
+    browseLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const filePath = await window.electronAPI.openFile();
+        if (filePath) showFileInUI(filePath);
     });
     
-    dropZone.addEventListener('dragover', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        dropZone.classList.add('drag-over');
-    });
-    
-    dropZone.addEventListener('dragleave', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        dropZone.classList.remove('drag-over');
-    });
-    
-    dropZone.addEventListener('drop', async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        dropZone.classList.remove('drag-over');
-        
-        const files = event.dataTransfer.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.path) {
-                showFileInUI(file.path);
-            } else {
-                console.error('file.path is not available');
-                alert('Drag & drop is not fully supported. Please use the Browse button to select your file.');
-            }
-        }
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener('drop', async (e) => {
+        e.preventDefault(); dropZone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path) showFileInUI(e.dataTransfer.files[0].path);
     });
 
     confirmUploadBtn.addEventListener('click', () => {
         const title = document.getElementById('book-title').value;
-        const author = document.getElementById('book-author').value;
-        const year = document.getElementById('book-year').value;
-        
-        if (!selectedFilePath) {
-            alert('Please select a book file');
-            return;
-        }
-        
-        if (!title) {
-            alert('Please provide a title');
-            return;
-        }
-        
-        openConfigureModal(selectedFilePath, title, author, year);
+        if (!selectedFilePath) return alert('Please select a book file');
+        if (!title) return alert('Please provide a title');
+        openConfigureModal(selectedFilePath, title, document.getElementById('book-author').value, document.getElementById('book-year').value);
         closeUploadModal();
     });
 
     cancelConfigureBtn.addEventListener('click', closeConfigureModal);
-    configureModalOverlay.addEventListener('click', (event) => {
-        if (event.target === configureModalOverlay) closeConfigureModal();
-    });
-    backConfigureBtn.addEventListener('click', () => {
-        closeConfigureModal();
-        openUploadModal();
-    });
+    backConfigureBtn.addEventListener('click', () => { closeConfigureModal(); openUploadModal(); });
     
-    previewPrevBtn.addEventListener('click', () => {
-        if (currentPreviewPage > 0) {
-            currentPreviewPage--;
-            updatePreviewNavigation();
-        }
-    });
-
-    previewNextBtn.addEventListener('click', () => {
-        if (currentPreviewPage < totalPreviewPages - 1) {
-            currentPreviewPage++;
-            updatePreviewNavigation();
-        }
-    });
+    previewPrevBtn.addEventListener('click', () => { if (currentPreviewPage > 0) { currentPreviewPage--; updatePreviewNavigation(); } });
+    previewNextBtn.addEventListener('click', () => { if (currentPreviewPage < totalPreviewPages - 1) { currentPreviewPage++; updatePreviewNavigation(); } });
     
-    // *** UPDATED ***: Calls the REAL API now
+    // Generate Audiobook Button
     generateAudiobookBtn.addEventListener('click', async () => {
         const generationData = {
+            spaceUrl: "https://audioapi-g2ru.onrender.com",
             filePath: selectedFilePath,
             title: document.getElementById('config-book-title').value,
             author: document.getElementById('config-book-author').value,
@@ -983,8 +1006,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             speed: document.getElementById('config-narrator-speed').value,
         };
         
-        console.log('Generation data prepared:', generationData);
-        
         currentBookData = {
             title: generationData.title,
             author: generationData.author,
@@ -992,70 +1013,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             coverUrl: generatedCoverUrl || null,
             filePath: selectedFilePath,
             progress: 0,
-            audioPath: null // Will be filled by generateAudiobook()
+            audioPath: null,
+            timestamps: null,
+            currentPage: 0
         };
-        
-        console.log('Current book data stored:', currentBookData);
-        
-        if (!currentBookData.filePath) {
-            console.error('WARNING: filePath is missing from currentBookData!');
-            alert('Error: File path is missing. Please try uploading again.');
-            return;
-        }
         
         closeConfigureModal();
         openGeneratingModal();
         
-        // *** Call the actual API ***
         try {
-            await generateAudiobook(generationData); // This function is defined below
-        } catch (error) {
-            console.error('Generation failed:', error);
-            closeGeneratingModal();
-            alert('Error generating audiobook: ' + error.message);
-        }
-    });
+            updateGenerationProgress('Processing book content...', 10);
+            
+            const timer = setInterval(() => {
+                const currentWidth = parseFloat(generationProgress.style.width) || 10;
+                if (currentWidth < 90) {
+                    updateGenerationProgress('Generating audio...', currentWidth + 1);
+                }
+            }, 1000);
 
-    // === API Integration Functions
-    async function generateAudiobook(config) {
-        const RENDER_BASE = "https://audioapi-g2ru.onrender.com";
-        const AUTH_TOKEN = "Potato";
-        
-        try {
-            // Step 1: Get the current Gradio URL
-            updateGenerationProgress('Connecting to API...', 5);
-            const gradioUrl = await getGradioUrl(RENDER_BASE, AUTH_TOKEN);
+            const result = await window.electronAPI.generateAudiobook(generationData);
             
-            if (!gradioUrl) {
-                throw new Error('No Gradio URL configured. Please set the URL first.');
-            }
-            
-            console.log('Using Gradio URL:', gradioUrl);
-            
-            // Step 2: Read the book file
-            updateGenerationProgress('Reading book file...', 15);
-            const fileBuffer = await window.electronAPI.readFileBuffer(config.filePath);
-            const fileBlob = new Blob([fileBuffer]);
-            const fileName = config.filePath.split(/[\\/]/).pop();
-            
-            // Step 3: Text Tagging Model (TTM)
-            updateGenerationProgress('Processing text and adding emotion tags...', 30);
-            const taggedText = await callTaggingAPI(gradioUrl, fileBlob, fileName, config);
-            
-            // Step 4: Tagged Text to Speech (3TS)
-            updateGenerationProgress('Generating emotional speech...', 55);
-            const audioData = await callTextToSpeechAPI(gradioUrl, taggedText, config);
-            
-            // Step 5: Sound Effects Model (SEM)
-            updateGenerationProgress('Adding sound effects...', 80);
-            const finalAudio = await callSoundEffectsAPI(gradioUrl, audioData, config);
-            
-            // Step 6: Save the audio
-            updateGenerationProgress('Saving audiobook...', 95);
-            const audioPath = await window.electronAPI.saveAudio(finalAudio, config.title);
-            
-            // Update book data with audio path
-            currentBookData.audioPath = audioPath;
+            clearInterval(timer);
+            currentBookData.audioPath = result.audioPath;
+            currentBookData.timestamps = result.timestamps;
             
             updateGenerationProgress('Complete!', 100);
             
@@ -1065,111 +1045,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, 1000);
             
         } catch (error) {
-            console.error('API Error:', error);
-            throw error; // This will be caught by the event listener
+            console.error('Generation failed:', error);
+            closeGeneratingModal();
+            alert('Error generating audiobook: ' + error.message);
         }
-    }
-
-    async function getGradioUrl(baseUrl, token) {
-        try {
-            const response = await fetch(`${baseUrl}/current`, {
-                headers: { 'X-Auth-Token': token }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to get Gradio URL');
-            }
-            
-            const data = await response.json();
-            return data.url;
-        } catch (error) {
-            console.error('Error getting Gradio URL:', error);
-            throw error;
-        }
-    }
-
-    async function callTaggingAPI(gradioUrl, fileBlob, fileName, config) {
-        try {
-            const formData = new FormData();
-            formData.append('file', fileBlob, fileName);
-            formData.append('persona', config.persona);
-            
-            const response = await fetch(`${gradioUrl}/api/ttm`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error('Text tagging failed: ' + response.statusText);
-            }
-            
-            const result = await response.json();
-            return result.tagged_text || result;
-        } catch (error) {
-            console.error('Tagging API error:', error);
-            throw new Error('Failed to process text: ' + error.message);
-        }
-    }
-
-    async function callTextToSpeechAPI(gradioUrl, taggedText, config) {
-        try {
-            const response = await fetch(`${gradioUrl}/api/tts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tagged_text: taggedText,
-                    voice: config.voice,
-                    speed: parseFloat(config.speed)
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Text to speech failed: ' + response.statusText);
-            }
-            
-            return await response.arrayBuffer();
-        } catch (error) {
-            console.error('TTS API error:', error);
-            throw new Error('Failed to generate speech: ' + error.message);
-        }
-    }
-
-    async function callSoundEffectsAPI(gradioUrl, audioData, config) {
-        try {
-            const formData = new FormData();
-            formData.append('audio', new Blob([audioData], { type: 'audio/mpeg' }));
-            formData.append('intensity', config.sfx);
-            
-            const response = await fetch(`${gradioUrl}/api/sfx`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error('Sound effects failed: ' + response.statusText);
-            }
-            
-            return await response.arrayBuffer();
-        } catch (error) {
-            console.error('SFX API error:', error);
-            throw new Error('Failed to add sound effects: ' + error.message);
-        }
-    }
-
-    function updateGenerationProgress(message, percent) {
-        generationProgress.style.width = `${percent}%`;
-        generationStatus.textContent = message;
-    }
+    });
 
     cancelGenerationBtn.addEventListener('click', () => {
         generationCancelled = true;
         closeGeneratingModal();
-        console.log('Generation cancelled by user.');
-        // TODO: Need to add logic to actually cancel the fetch requests if possible
     });
 
     addToBookshelfBtn.addEventListener('click', async () => {
-        console.log('Adding to bookshelf...');
         if (currentBookData) {
             await saveBookToDatabase(currentBookData);
             await loadBooksFromDatabase();
@@ -1178,54 +1065,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     listenNowBtn.addEventListener('click', async () => {
-        console.log('Listen Now clicked');
-        
         if (currentBookData) {
-            console.log('Saving book to database...');
             await saveBookToDatabase(currentBookData);
-            
-            console.log('Loading books from database...');
             await loadBooksFromDatabase();
-            
-            console.log('Finding newly added book...');
             const books = await window.electronAPI.getBooksFromDb();
-            
             const newBook = books.find(b => b.filePath === currentBookData.filePath);
-            console.log('Found new book:', newBook);
-            
             if (newBook) {
                 closeCompleteModal();
-                setTimeout(() => {
-                    openBookReader(newBook);
-                }, 100);
-            } else {
-                console.error('Could not find newly added book in database');
-                alert('Book was added but could not be opened. Please click it from the bookshelf.');
+                setTimeout(() => openBookReader(newBook), 100);
             }
-        } else {
-            console.error('No current book data');
         }
     });
     
-    completeModalOverlay.addEventListener('click', (event) => {
-        if (event.target === completeModalOverlay) closeCompleteModal();
-    });
-
+    // Delete/Cancel Modals
+    completeModalOverlay.addEventListener('click', (e) => { if (e.target === completeModalOverlay) closeCompleteModal(); });
     cancelDeleteBtn.addEventListener('click', closeDeleteModal);
     confirmDeleteBtn.addEventListener('click', deleteBook);
-    deleteModalOverlay.addEventListener('click', (event) => {
-        if (event.target === deleteModalOverlay) closeDeleteModal();
-    });
+    deleteModalOverlay.addEventListener('click', (e) => { if (e.target === deleteModalOverlay) closeDeleteModal(); });
 
-    // Reader controls
+    // Reader Controls
     readerBackBtn.addEventListener('click', () => {
         readerView.classList.add('hidden');
         mainContentArea.classList.remove('hidden');
-        updateBookProgress(); // Save progress when leaving
-        
+        updateBookProgress();
         if (currentAudio) {
             currentAudio.pause();
-            currentAudio.src = ''; // Release memory
+            currentAudio.src = '';
             currentAudio = null;
             isPlaying = false;
             playPauseBtn.innerHTML = '▶';
@@ -1234,95 +1099,75 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     prevPageBtn.addEventListener('click', () => {
         const isPdfPage = currentChapters[currentChapterIndex].includes('<img');
-        if (isPdfPage) {
-            if (currentChapterIndex > 0) {
-                loadChapter(currentChapterIndex - 2);
-            }
-        } else {
-            if (currentChapterIndex > 0) {
-                loadChapter(currentChapterIndex - 1);
+        const step = isPdfPage ? 2 : 1;
+        if (currentChapterIndex > 0) {
+            loadChapter(currentChapterIndex - step);
+            if (!currentAudio) {
+                currentReaderBook.progress = ((currentChapterIndex) / currentChapters.length) * 100;
+                updateBookProgress();
             }
         }
     });
 
     nextPageBtn.addEventListener('click', () => {
         const isPdfPage = currentChapters[currentChapterIndex].includes('<img');
-        if (isPdfPage) {
-            if (currentChapterIndex + 2 < currentChapters.length) {
-                // Update progress based on page turn (if no audio)
-                if (!currentAudio) {
-                    currentReaderBook.progress = ((currentChapterIndex + 2) / currentChapters.length) * 100;
-                    updateBookProgress();
-                }
-                loadChapter(currentChapterIndex + 2);
+        const step = isPdfPage ? 2 : 1;
+        if (currentChapterIndex + step < currentChapters.length) {
+            if (!currentAudio) {
+                currentReaderBook.progress = ((currentChapterIndex + step) / currentChapters.length) * 100;
+                updateBookProgress();
             }
-        } else {
-            if (currentChapterIndex < currentChapters.length - 1) {
-                // Update progress based on page turn (if no audio)
-                if (!currentAudio) {
-                    currentReaderBook.progress = ((currentChapterIndex + 1) / currentChapters.length) * 100;
-                    updateBookProgress();
-                }
-                loadChapter(currentChapterIndex + 1);
-            }
+            loadChapter(currentChapterIndex + step);
         }
     });
 
-    chapterSelect.addEventListener('change', (e) => {
-        loadChapter(parseInt(e.target.value));
+    chapterSelect.addEventListener('change', (e) => loadChapter(parseInt(e.target.value)));
+
+    // Page select dropdown
+    pageSelect.addEventListener('change', (e) => loadChapter(parseInt(e.target.value)));
+
+    // Auto-turn toggle
+    autoTurnBtn.addEventListener('click', () => {
+        autoTurnEnabled = !autoTurnEnabled;
+        if (autoTurnEnabled) {
+            // Add active class for blue styling
+            autoTurnBtn.classList.add('active');
+            autoTurnBtn.title = 'Auto-turn pages (ON)';
+            // Setup timestamps immediately
+            setupAutoTurn();
+        } else {
+            autoTurnBtn.classList.remove('active');
+            autoTurnBtn.title = 'Auto-turn pages (OFF)';
+        }
     });
 
-    // *** UPDATED ***
+    // Audio Controls Listeners
     playPauseBtn.addEventListener('click', () => {
         if (!currentAudio) return;
-        
-        if (isPlaying) {
-            currentAudio.pause();
-        } else {
-            currentAudio.play();
-        }
+        if (isPlaying) currentAudio.pause(); else currentAudio.play();
         isPlaying = !isPlaying;
         playPauseBtn.innerHTML = isPlaying ? '⏸' : '▶';
-        console.log('Audio Play/Pause Toggled:', isPlaying);
     });
 
-    // *** UPDATED ***
     rewindBtn.addEventListener('click', () => {
-        if (currentAudio) {
-            currentAudio.currentTime = Math.max(0, currentAudio.currentTime - 10);
-            console.log('Rewind 10s');
-        }
+        if (currentAudio) currentAudio.currentTime = Math.max(0, currentAudio.currentTime - 10);
     });
 
-    // *** UPDATED ***
     forwardBtn.addEventListener('click', () => {
-        if (currentAudio) {
-            currentAudio.currentTime = Math.min(currentAudio.duration, currentAudio.currentTime + 10);
-            console.log('Forward 10s');
-        }
+        if (currentAudio) currentAudio.currentTime = Math.min(currentAudio.duration, currentAudio.currentTime + 10);
     });
 
-    // *** UPDATED ***
     speedSlider.addEventListener('input', (e) => {
         const speed = e.target.value;
         speedValue.textContent = `${speed}x`;
-        if (currentAudio) {
-            currentAudio.playbackRate = parseFloat(speed);
-        }
-        console.log(`Audio Speed set to: ${speed}x`);
+        if (currentAudio) currentAudio.playbackRate = parseFloat(speed);
     });
 
-    // *** UPDATED ***
     volumeSlider.addEventListener('input', (e) => {
-        const volume = e.target.value;
-        if (currentAudio) {
-            currentAudio.volume = parseFloat(volume) / 100; // HTML is 0-100, Audio is 0-1
-        }
-        console.log(`Audio Volume set to: ${volume}`);
+        if (currentAudio) currentAudio.volume = parseFloat(e.target.value) / 100;
     });
 
-    // === INITIALISE APP ===
+    // Initialise
     resetUploadUI();
     await loadBooksFromDatabase();
-    console.log('App fully loaded');
 });

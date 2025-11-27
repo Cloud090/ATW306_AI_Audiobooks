@@ -28,7 +28,7 @@
                     </div>
                 </div>
                 Drag & drop files or <a href="#" id="browse-link">Browse</a>
-                <span class="drop-zone-support">Supported formats: EPUB, PDF, DOCX, ODT</span>
+                <span class="drop-zone-support">Supported formats: EPUB, PDF</span>
             </div>
             <div class="upload-list-container"></div>
             <div class="form-group">
@@ -60,7 +60,7 @@
 
         <main class="bookshelf-container">
             <div class="bookshelf-grid" id="bookshelf-grid">
-                </div>
+            </div>
         </main>
     </div>
 
@@ -76,13 +76,17 @@
     </div>
 
     <div id="book-reader-view" class="hidden">
+        <!-- Hover trigger area for header - SMALL top-left area only -->
+        <div class="reader-header-trigger"></div>
+        
         <div class="reader-header">
             <button class="reader-back-btn" id="reader-back-btn">
                 <span>←</span> BACK
             </button>
-            <div class="reader-title" id="reader-title">Book Title</div>
-            <div class="reader-controls">
-                </div>
+            <div class="reader-title-section">
+                <div class="reader-title" id="reader-title">Book Title</div>
+                <div class="reader-metadata" id="reader-metadata">Author • Year</div>
+            </div>
         </div>
 
         <div class="reader-content">
@@ -107,16 +111,28 @@
                     <option>Chapter 1</option>
                 </select>
             </div>
+            
+            <div class="audio-control-group" id="page-select-group" style="display: none;">
+                <label>Page:</label>
+                <select class="page-select" id="page-select">
+                    <option>Page 1-2</option>
+                </select>
+            </div>
 
             <div class="audio-playback-controls">
-                <button class="audio-btn" id="rewind-btn" title="Rewind">
+                <button class="audio-btn" id="rewind-btn" title="Rewind 10s">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
                 </button>
                 <button class="audio-btn play" id="play-pause-btn" title="Play/Pause">▶</button>
-                <button class="audio-btn" id="forward-btn" title="Forward">
+                <button class="audio-btn" id="forward-btn" title="Forward 10s">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
                 </button>
             </div>
+            
+            <button class="auto-turn-btn" id="auto-turn-btn" title="Auto-turn pages (OFF)">
+                <span>AUTO</span>
+                <span>TURN</span>
+            </button>
             
             <div class="audio-sliders-group">
                 <div class="audio-control-group" id="speed-control-group">
@@ -130,6 +146,7 @@
                 </div>
             </div>
         </div>
+
         <div class="reader-footer">
             <div class="reader-nav-controls">
                 <button class="reader-nav-btn" id="prev-page-btn">◀ Previous</button>
@@ -167,27 +184,27 @@
                     <div class="form-group">
                         <label for="config-persona">Narrator Persona</label>
                         <select id="config-persona">
-                            <option value="">Select persona</option>
-                            <option value="overemotional">Overemotional</option>
-                            <option value="calm">Calm</option>
-                            <option value="serious">Serious</option>
+                            <option value="Neutral">Neutral</option>
+                            <option value="Unemotional">Unemotional</option>
+                            <option value="Calm">Calm</option>
+                            <option value="Dramatic">Dramatic</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="config-voice">Narrator Voice</label>
                         <select id="config-voice">
-                            <option value="">Select voice</option>
-                            <option value="voice1">Voice 1 (Male, Deep)</option>
-                            <option value="voice2">Voice 2 (Female, Clear)</option>
+                            <option value="1001">Voice A</option>
+                            <option value="1002">Voice B</option>
+                            <option value="1003">Voice C</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="config-sfx-intensity">Sound Effect(s) Intensity</label>
                         <select id="config-sfx-intensity">
-                            <option value="">Select intensity</option>
-                            <option value="cinematic">Cinematic</option>
+                            <option value="None">None</option>
                             <option value="subtle">Subtle</option>
-                            <option value="none">None</option>
+                            <option value="Balanced">Balanced</option>
+                            <option value="cinematic">Cinematic</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -196,7 +213,6 @@
                             <option value="1.0">1.0x (Normal)</option>
                             <option value="0.75">0.75x</option>
                             <option value="1.25">1.25x</option>
-                            <option value="1.5">1.5x</option>
                         </select>
                     </div>
                 </div>
@@ -227,16 +243,15 @@
 
     <div class="modal-overlay" id="generating-modal-overlay">
         <div class="modal-content-simple" id="generating-modal-content">
-            <h2>Generating....</h2>
+            <h2>Generating...</h2>
             <div class="progress-bar-container" style="height: 10px; margin-top: 15px;">
                 <div class="progress-bar blue" id="generation-progress" style="width: 0%;"></div>
             </div>
             <span id="generation-status" style="font-size: 14px; margin-top: 10px; display: block;">
-                15 Seconds remaining
+                Initialising...
             </span>
             <div class="modal-buttons" style="margin-top: 25px;">
                 <button class="btn btn-secondary" id="cancel-generation-btn">CANCEL</button>
-                <button class="btn btn-tertiary" id="back-generation-btn" disabled>BACK</button>
             </div>
         </div>
     </div>
