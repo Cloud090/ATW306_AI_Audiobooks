@@ -26,9 +26,9 @@ def _resolve_checkpoint(local_path, hf_repo):
     config = os.path.join(local_path, "config.json")
     if os.path.isfile(config):
         if any(f.endswith(".safetensors") for f in os.listdir(local_path)):
-            print(f"[Orpheus] Using local model: {local_path}")
+            print(f"[Tagged text to speech] Using local model: {local_path}")
             return local_path
-    print(f"[Orpheus] Using HF model: {hf_repo}")
+    print(f"[Tagged text to speech] Using HF model: {hf_repo}")
     return hf_repo
 
 
@@ -104,7 +104,7 @@ def _combine_wavs(folder):
 
 def preload_model(
     local_model_path="models/orpheus_merged_cremad_full_fp16_mspk",
-    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5"
+    hf_repo_id="Smallan/orpheus_merged_cremad_full_fp16_mspk"
 ):
     global _MODEL, _TOKENIZER, _SNAC
 
@@ -113,15 +113,15 @@ def preload_model(
 
     ckpt = _resolve_checkpoint(local_model_path, hf_repo_id)
 
-    print("[Orpheus] Loading SNAC decoder...")
+    print("[Tagged text to speech] Loading SNAC decoder...")
     _SNAC = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
 
-    print("[Orpheus] Loading tokenizer...")
+    print("[Tagged text to speech] Loading tokenizer...")
     _TOKENIZER = AutoTokenizer.from_pretrained(
         ckpt, trust_remote_code=True, use_fast=False
     )
 
-    print("[Orpheus] Loading model...")
+    print("[Tagged text to speech] Loading model...")
     _MODEL = AutoModelForCausalLM.from_pretrained(
         ckpt,
         dtype=torch.float16,
@@ -129,7 +129,7 @@ def preload_model(
         trust_remote_code=True
     )
 
-    print("[Orpheus] Model preloaded.")
+    print("[Tagged text to speech] Model preloaded.")
 
 
 def _ensure_loaded():
@@ -175,32 +175,51 @@ def speak_text(text):
     return _clean_audio(raw)
 
 
-def speak_json(json_items, output_folder="outputs"):
-
+def speak_json(json_items, output_folder="outputs", progress=None):
     _ensure_loaded()
 
     # Validate input
     if not isinstance(json_items, list):
-        raise ValueError("speak_json expects a list of {text:...} dicts, not a file path string.")
+        raise ValueError("speak_json expects a list of {text:...} dicts.")
 
     os.makedirs(output_folder, exist_ok=True)
 
-    # Extract text fields
     texts = [x.get("text", "").strip() for x in json_items if x.get("text")]
+    total = len(texts)
+
+    if progress:
+        progress(f"Generating spoken audio ({total} segments)")
+
+    print(f"Generating spoken audio ({total} segments)")
 
     index = 0
-    for t in tqdm(texts, desc="Generating", unit="line"):
+
+    for t in texts:
         index += 1
+
+        if progress:
+            progress(f"Generating spoken audio ({total} segments)")
+
+        print(f"Generating spoken audio ({total} segments)")
+
         out_path = os.path.join(output_folder, f"out_{index:03d}.wav")
 
         # Generate audio
         audio = speak_text(t)
 
-        # Save to WAV
+        # Save
         sf.write(out_path, audio, SR)
 
-    # Combine all wavs into combined.wav
+        if progress:
+            progress(f"Saved segment {index}/{total}")
+
+    # Combine all WAVs
     combined = _combine_wavs(output_folder)
-    print(f"[Orpheus] Combined file: {combined}")
+
+    if progress:
+        progress("Combining all segments into final audio...")
+
+    if progress:
+        progress(f"Orpheus completed. Output folder: {output_folder}")
 
     return output_folder
