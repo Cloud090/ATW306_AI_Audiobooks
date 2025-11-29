@@ -7,7 +7,7 @@ Instead, they serve as supporting material demonstrating the model development w
 
 ### Contents
 #### 1. Dataset Preparation
-`create_cremad_dataset.py`
+##### `create_cremad_dataset.py`
 
 - Parses the CREMA-D dataset and converts files into a clean CSV format.
 - Extracts:
@@ -19,14 +19,14 @@ Instead, they serve as supporting material demonstrating the model development w
 - Used as the base dataset for emotional fine-tuning.
 
 
-`create_steven_dataset.py`
+##### `create_steven_dataset.py`
 
 - Converts synthetic recordings (the custom “clear” speaker) into the same dataset format as CREMA-D.
 - Trained with the same 6 emotions.
 - Used to improve clarity and stabilise CREMA-D’s rougher speakers.
 
 #### 2. SNAC Encoding
-`new_prep_for_snac.py`
+`prep_snac.py`
 
 - Loads the combined dataset CSVs.
 - Resolves all audio paths + resamples audio to 24 kHz.
@@ -38,8 +38,8 @@ Instead, they serve as supporting material demonstrating the model development w
     - SNAC code stream
 - Output is saved to disk and used during model training.
 
-### Model Training
-`a_train_full.py`
+### 3. Model Training
+`train.py`
 
 - Loads the Orpheus-3B pretrained checkpoint via Unsloth.
 - Applies LoRA adapters to Q/K/V/O and MLP layers.
@@ -51,7 +51,7 @@ Instead, they serve as supporting material demonstrating the model development w
     - A merged FP16 model ready for inference
 This is the script responsible for producing the model used in our pipeline.
 
-### Local Inference & Audio Generation
+### 4. Local Inference & Audio Generation
 `run.py`
 
 This is the main local generation script used to evaluate the model during development.
@@ -60,7 +60,7 @@ Features:
 - Loads SNAC for decoding acoustic tokens.
 - Reads prompts from `prompts.json`.
 - Supports emotional + speaker tags such as:
-> `<spk=2001> <happy> <0.7> This is an example line.`
+> `<spk=2001> <happy> <int_md> This is an example line.`
 - Generates WAV files for each line.
 - Cleans and normalises output.
 - Optionally creates a combined audiobook-style file.
@@ -69,13 +69,13 @@ Output is stored under:
 `outputs/runXX/out_###.wav`
 `outputs/combined/combined_XX.wav`
 
-### How to Run Inference
+### 5. How to Run Inference
 1. Place your prompts in `data/prompts.json`
 Supported formats:
 
-`["<spk=2001> <sad> <0.4> Hello there."]`
+> `["<spk=2001> <sad> <int_md> Hello there."]`
 or
-`[{"text": "<spk=1061> <happy> <0.8> Welcome!"}]`
+`[{"text": "<spk=1061> <happy> <int_md> Welcome!"}]`
 
 2. Make sure the model is available:
 - Local `models/...` folder
@@ -89,7 +89,7 @@ or
 `outputs/runXX/`
 
 ### Notes
-> These scripts were used throughout the development process to test model quality and shape the training pipeline. They are not deployed in the final product.
-> All scripts in this folder were developed and tested inside a dedicated Python virtual environment (venv).
-> No datasets or training checkpoints are included in this repository. Only the final merged model is uploaded publicly to HuggingFace for use in the project.
-> This README is included to clearly document the contribution, workflow, and reproducibility of the TTS component.
+> - These scripts were used throughout the development process to test model quality and shape the training pipeline. They are not deployed in the final product.
+> - All scripts in this folder were developed and tested inside a dedicated Python virtual environment (venv).
+> - No datasets or training checkpoints are included in this repository. Only the final merged model is uploaded publicly to HuggingFace for use in the project.
+> - This README is included to clearly document the contribution, workflow, and reproducibility of the TTS component.
