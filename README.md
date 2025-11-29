@@ -5,8 +5,8 @@ This branch contains final versions of all scripts used to prepare datasets, fin
 The scripts here are not part of the final deployed pipeline used by application.
 Instead, they serve as supporting material demonstrating the model development work, data handling, and testing.
 
-### Contents
-#### 1. Dataset Preparation
+## Contents
+### 1. Dataset Preparation
 ##### `create_cremad_dataset.py`
 
 - Parses the CREMA-D dataset and converts files into a clean CSV format.
@@ -25,7 +25,7 @@ Instead, they serve as supporting material demonstrating the model development w
 - Trained with the same 6 emotions.
 - Used to improve clarity and stabilise CREMA-D’s rougher speakers.
 
-#### 2. SNAC Encoding
+### 2. SNAC Encoding
 `prep_snac.py`
 
 - Loads the combined dataset CSVs.
