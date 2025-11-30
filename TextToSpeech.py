@@ -231,7 +231,7 @@ def speak_text(text):
         input_ids=inp,
         attention_mask=attn,
         # 80 tokens = ~1 second of audio
-        max_new_tokens=5000,    # Allow longer output, up to ~1 min of audio, but limited to stop runaway.
+        max_new_tokens=6000,    # Allow longer output, up to ~1.2 min of audio, but limited to stop runaway.
         # min_new_tokens=200,   # Ensure at least some audio is generated. Left out for flexibility.
         do_sample=True,
         temperature=0.6,        # Lower temperature for more coherent speech, higher for more variety
