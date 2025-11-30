@@ -9,7 +9,7 @@ This module:
   - Handles model, tokenizer, and SNAC loading once, then reuses them.
   - Normalises and combines segments into a single WAV per run.
 """
-
+# Standard imports
 import os
 import json
 import torch
@@ -51,6 +51,7 @@ def clamp_layers_to_codebook(layers, snac):
     quantizers = snac.quantizer.quantizers
     clamped = []
 
+    # Process each layer.
     for i, layer in enumerate(layers):
         num_codes = quantizers[i].codebook.num_embeddings
 
@@ -60,6 +61,7 @@ def clamp_layers_to_codebook(layers, snac):
         # Clamp values.
         layer = torch.clamp(layer, 0, num_codes - 1)
 
+        # Append clamped layer.
         clamped.append(layer)
 
     return clamped
@@ -98,6 +100,7 @@ def _clean_audio(a):
         stationary=False
     )
 
+    # Apply low-pass filter.
     a = _lowpass(a)
     return a.astype("float32")
 
@@ -116,12 +119,14 @@ def _decode_snac(snac, codes):
         L3.append(codes[base + 5] - 20480)
         L3.append(codes[base + 6] - 24576)
 
+    # Convert to tensors and add batch dimension.
     layers = [
         torch.tensor(L1).unsqueeze(0),
         torch.tensor(L2).unsqueeze(0),
         torch.tensor(L3).unsqueeze(0),
     ]
 
+    # Decode using SNAC.
     layers = clamp_layers_to_codebook(layers, snac)  # Clamp to valid indices before decoding
     audio = snac.decode(layers).detach().squeeze().cpu().numpy()
     return audio
@@ -143,11 +148,13 @@ def _combine_wavs(folder):
     if not files:
         return None
 
+    # Read and concatenate all audio parts.
     audio_parts = []
     for f in files:
         a, _ = sf.read(os.path.join(folder, f))
         audio_parts.append(a.astype("float32"))
 
+    # Combine and normalise.
     merged = np.concatenate(audio_parts)
     merged = _normalize(merged, 0.15)
     out_path = os.path.join(folder, "combined.wav")
@@ -159,24 +166,31 @@ def _combine_wavs(folder):
 
 # Load Orpheus + SNAC once and cache globally.
 def preload_model(
-    local_model_path="models/orpheus_merged_cremad_plus_steven_fp16_mspk_v5",
-    hf_repo_id="Smallan/final_fine_tune_fp16" # Update to latest model as needed
+    # Path to local model folder or HF repo.
+    local_model_path="models/orpheus_merged_cremad_plus_steven_fp16_mspk_v5", # Update to your local path as needed
+    hf_repo_id="Smallan/final_fine_tune_fp16" # Update to your HF repo as needed
 ):
+    # Use global variables.
     global _MODEL, _TOKENIZER, _SNAC
 
+    # Avoid re-loading if already done.
     if _MODEL is not None:
         return  # already loaded
 
+    # Resolve checkpoint path.
     ckpt = _resolve_checkpoint(local_model_path, hf_repo_id)
 
+    # Load SNAC decoder.
     print("[Tagged text to speech] Loading SNAC decoder...")
     _SNAC = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
 
+    # Load tokenizer.
     print("[Tagged text to speech] Loading tokenizer...")
     _TOKENIZER = AutoTokenizer.from_pretrained(
         ckpt, trust_remote_code=True, use_fast=False
     )
 
+    # Load model.
     print("[Tagged text to speech] Loading model...")
     _MODEL = AutoModelForCausalLM.from_pretrained(
         ckpt,
@@ -200,6 +214,7 @@ def _ensure_loaded():
 def speak_text(text):
     _ensure_loaded()
 
+    # CUDA if available.
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Tokenise full prompt (includes <spk>, emotion, intensity tags).
@@ -238,6 +253,7 @@ def speak_text(text):
     usable = (len(gen) // 7) * 7
     tokens = [int(x) - 128266 for x in gen[:usable]]
 
+    # Decode SNAC tokens to raw audio.
     raw = _decode_snac(_SNAC, tokens)
     return _clean_audio(raw)
 
@@ -250,8 +266,10 @@ def speak_json(json_items, output_folder="outputs", progress=None):
     if not isinstance(json_items, list):
         raise ValueError("speak_json expects a list of {text:...} dicts.")
 
+    # Ensure output folder exists.
     os.makedirs(output_folder, exist_ok=True)
 
+    # Extract texts.
     texts = [x.get("text", "").strip() for x in json_items if x.get("text")]
     total = len(texts)
 
@@ -262,14 +280,17 @@ def speak_json(json_items, output_folder="outputs", progress=None):
 
     index = 0
 
+    # Process each text segment.
     for t in texts:
         index += 1
 
+        # Update progress.
         if progress:
             progress(f"Generating spoken audio ({total} segments)")
 
         print(f"Generating spoken audio ({total} segments)")
 
+        # Output path for this segment.
         out_path = os.path.join(output_folder, f"out_{index:03d}.wav")
 
         # Generate audio for this segment and save.
@@ -278,15 +299,18 @@ def speak_json(json_items, output_folder="outputs", progress=None):
         # Save
         sf.write(out_path, audio, SR)
 
+        # Update progress.
         if progress:
             progress(f"Saved segment {index}/{total}")
 
     # Merge all per-segment files into a combined .wav for convenience.
     combined = _combine_wavs(output_folder)
 
+    # Final progress update.
     if progress:
         progress("Combining all segments into final audio...")
 
+    # Final output path.
     if progress:
         progress(f"Orpheus completed. Output folder: {output_folder}")
 
