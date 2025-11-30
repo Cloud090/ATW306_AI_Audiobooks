@@ -23,7 +23,7 @@ MaxTokens = 450
 Device = "cuda" if torch.cuda.is_available() else "cpu"
 DropoutP = 0.2
 
-# Minimum probability (PB + PI) for a token to be considered part of a sound effect span.
+# Minimum probability for a token to be considered part of a sound effect span.
 PBI_MIN = 0.15
 
 # Function to read a text file, returning a list of lines.
