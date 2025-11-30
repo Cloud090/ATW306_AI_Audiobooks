@@ -1,3 +1,15 @@
+"""
+Tagged Text-To-Speech component for the Emotional Audiobook pipeline.
+This module:
+  - Loads the merged Orpheus multi-speaker emotional TTS model.
+  - Loads SNAC to decode acoustic tokens into 24 kHz waveforms.
+  - Exposes an API for:
+      - speak_text(text), which returns a single audio clip as a numpy array.
+      - speak_json(items), which generates multiple clips and combines them.
+  - Handles model, tokenizer, and SNAC loading once, then reuses them.
+  - Normalises and combines segments into a single WAV per run.
+"""
+
 import os
 import json
 import torch
@@ -9,6 +21,10 @@ from scipy.signal import butter, filtfilt
 import noisereduce as nr
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
+# ========================= Orpheus token config =========================
+
+# Core Orpheus special token IDs (fixed for this model).
 TOKENISER_LEN = 128256
 START_HUMAN = TOKENISER_LEN + 3
 END_HUMAN = TOKENISER_LEN + 4
@@ -16,20 +32,22 @@ END_OF_TEXT = 128009
 EOS_SPEECH = 128258
 START_SPEECH = TOKENISER_LEN + 1
 
-SR = 24000  # sample rate
 
+# SNAC output sample rate.
+SR = 24000 # 24 kHz
+
+
+# Global variables to hold loaded model, tokenizer, and SNAC decoder.
 _MODEL = None
 _TOKENIZER = None
 _SNAC = None
 
 
-def clamp_layers_to_codebook(layers, snac):
-    """
-    Clamp SNAC code indices to valid ranges for each quantizer layer.
+# ========================= SNAC helpers =========================
 
-    Ensures all codes are within [0, num_codes-1] for each layer so
-    decoding is stable and never hits out-of-range indices.
-    """
+# Clamp SNAC code indices to valid ranges for each quantizer layer.
+# Ensures all codes are within [0, num_codes-1] for each layer so decoding is stable and never hits out-of-range indices.
+def clamp_layers_to_codebook(layers, snac):
     quantizers = snac.quantizer.quantizers
     clamped = []
 
@@ -47,6 +65,9 @@ def clamp_layers_to_codebook(layers, snac):
     return clamped
 
 
+# ========================= Checkpoint helper =========================
+
+# Prefer a local checkpoint if it looks valid, otherwise fall back to HF.
 def _resolve_checkpoint(local_path, hf_repo):
     config = os.path.join(local_path, "config.json")
     if os.path.isfile(config):
@@ -57,11 +78,14 @@ def _resolve_checkpoint(local_path, hf_repo):
     return hf_repo
 
 
+# ========================= Audio helpers =========================
+
+# A low-pass filter to roll off high-end noise.
 def _lowpass(a, cutoff=9000):
     b, c = butter(4, cutoff / (0.5 * SR), btype="low")
     return filtfilt(b, c, a)
 
-
+# Basic audio cleanup (noisereduce + lowpass).
 def _clean_audio(a):
     a = np.nan_to_num(a).astype("float32")
     noise = a[: int(0.3 * SR)]
@@ -77,11 +101,12 @@ def _clean_audio(a):
     a = _lowpass(a)
     return a.astype("float32")
 
-
+# Decode flat SNAC codes into audio using the training layout.
 def _decode_snac(snac, codes):
     L1, L2, L3 = [], [], []
 
-    for i in range(len(codes) // 7): # Removed +1 to only iterate over full 7-token SNAC frames (no +1, prevents out of range decoding)
+    # Process exact SNAC frames of 7 tokens.
+    for i in range(len(codes) // 7):
         base = 7 * i
         L1.append(codes[base])
         L2.append(codes[base + 1] - 4096)
@@ -102,6 +127,7 @@ def _decode_snac(snac, codes):
     return audio
 
 
+# Normalise to a target RMS and clamp to [-1, 1].
 def _normalize(a, rms=0.1):
     a = a.astype(np.float32)
     power = np.sqrt(np.mean(a ** 2))
@@ -109,7 +135,7 @@ def _normalize(a, rms=0.1):
         return a
     return np.clip(a * (rms / power), -1.0, 1.0).astype(np.float32)
 
-
+# Combine per-segment WAVs into a single file.
 def _combine_wavs(folder):
     files = sorted(
         [f for f in os.listdir(folder) if f.startswith("out_") and f.endswith(".wav")]
@@ -128,9 +154,13 @@ def _combine_wavs(folder):
     sf.write(out_path, merged, SR)
     return out_path
 
+
+# ========================= Model loading =========================
+
+# Load Orpheus + SNAC once and cache globally.
 def preload_model(
-    local_model_path="models/orpheus_merged_cremad_full_fp16_mspk",
-    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5" # Updated to latest model
+    local_model_path="models/orpheus_merged_cremad_plus_steven_fp16_mspk_v5",
+    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5" # Update to latest model as needed
 ):
     global _MODEL, _TOKENIZER, _SNAC
 
@@ -158,42 +188,53 @@ def preload_model(
     print("[Tagged text to speech] Model preloaded.")
 
 
+# Helper to auto-load model on first use.
 def _ensure_loaded():
-    """Auto-load model if not already loaded."""
     if _MODEL is None:
         preload_model()
 
 
+# ========================= TTS =========================
+
+# Text-to-speech for a single text string, returns raw audio as numpy array.
 def speak_text(text):
     _ensure_loaded()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # Tokenise full prompt (includes <spk>, emotion, intensity tags).
     ids = _TOKENIZER(text, return_tensors="pt").input_ids.to(device)
 
+    # Prepare model input with start/end tokens.
     start = torch.tensor([[START_HUMAN]], device=device)
     end = torch.tensor([[END_OF_TEXT, END_HUMAN]], device=device)
     inp = torch.cat([start, ids, end], dim=1)
     attn = torch.ones_like(inp)
 
+    # Main generation settings tuned for audiobook-style output.
     gen = _MODEL.generate(
         input_ids=inp,
         attention_mask=attn,
-        max_new_tokens=5000,
+        # 80 tokens = ~1 second of audio
+        max_new_tokens=5000,    # Allow longer output, up to ~1 min of audio, but limited to stop runaway.
+        # min_new_tokens=200,   # Ensure at least some audio is generated. Left out for flexibility.
         do_sample=True,
-        temperature=0.6,
-        top_p=0.9,
-        repetition_penalty=1.1,
-        eos_token_id=EOS_SPEECH
+        temperature=0.6,        # Lower temperature for more coherent speech, higher for more variety
+        top_p=0.9,              # Nucleus sampling to focus on top tokens
+        repetition_penalty=1.1, # Mild penalty to reduce repetition
+        eos_token_id=EOS_SPEECH, # Stop generation at speech EOS
+        use_cache=True          # Use past key values for faster generation
     )[0]
 
-    # Find speech start
+    # Find speech start and drop any leading non-speech tokens.
     idx = (gen == START_SPEECH).nonzero(as_tuple=True)[0]
     if len(idx):
         gen = gen[idx[-1] + 1:]
 
+    # Drop EOS markers.
     gen = gen[gen != EOS_SPEECH]
 
+    # SNAC expects groups of 7 codes.
     usable = (len(gen) // 7) * 7
     tokens = [int(x) - 128266 for x in gen[:usable]]
 
@@ -201,6 +242,7 @@ def speak_text(text):
     return _clean_audio(raw)
 
 
+# Batch TTS for a list of {"text": "..."} dicts, used by the pipeline.
 def speak_json(json_items, output_folder="outputs", progress=None):
     _ensure_loaded()
 
@@ -230,7 +272,7 @@ def speak_json(json_items, output_folder="outputs", progress=None):
 
         out_path = os.path.join(output_folder, f"out_{index:03d}.wav")
 
-        # Generate audio
+        # Generate audio for this segment and save.
         audio = speak_text(t)
 
         # Save
@@ -239,7 +281,7 @@ def speak_json(json_items, output_folder="outputs", progress=None):
         if progress:
             progress(f"Saved segment {index}/{total}")
 
-    # Combine all WAVs
+    # Merge all per-segment files into a combined .wav for convenience.
     combined = _combine_wavs(output_folder)
 
     if progress:
