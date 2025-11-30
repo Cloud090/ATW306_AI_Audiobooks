@@ -22,6 +22,31 @@ _MODEL = None
 _TOKENIZER = None
 _SNAC = None
 
+
+def clamp_layers_to_codebook(layers, snac):
+    """
+    Clamp SNAC code indices to valid ranges for each quantizer layer.
+
+    Ensures all codes are within [0, num_codes-1] for each layer so
+    decoding is stable and never hits out-of-range indices.
+    """
+    quantizers = snac.quantizer.quantizers
+    clamped = []
+
+    for i, layer in enumerate(layers):
+        num_codes = quantizers[i].codebook.num_embeddings
+
+        # Ensure layer is on the same device as the codebook.
+        layer = layer.to(quantizers[i].codebook.weight.device)
+
+        # Clamp values.
+        layer = torch.clamp(layer, 0, num_codes - 1)
+
+        clamped.append(layer)
+
+    return clamped
+
+
 def _resolve_checkpoint(local_path, hf_repo):
     config = os.path.join(local_path, "config.json")
     if os.path.isfile(config):
@@ -56,7 +81,7 @@ def _clean_audio(a):
 def _decode_snac(snac, codes):
     L1, L2, L3 = [], [], []
 
-    for i in range((len(codes) + 1) // 7):
+    for i in range(len(codes) // 7): # Removed +1 to only iterate over full 7-token SNAC frames (no +1, prevents out of range decoding)
         base = 7 * i
         L1.append(codes[base])
         L2.append(codes[base + 1] - 4096)
@@ -72,6 +97,7 @@ def _decode_snac(snac, codes):
         torch.tensor(L3).unsqueeze(0),
     ]
 
+    layers = clamp_layers_to_codebook(layers, snac)  # Clamp to valid indices before decoding
     audio = snac.decode(layers).detach().squeeze().cpu().numpy()
     return audio
 
@@ -104,7 +130,7 @@ def _combine_wavs(folder):
 
 def preload_model(
     local_model_path="models/orpheus_merged_cremad_full_fp16_mspk",
-    hf_repo_id="Smallan/orpheus_merged_cremad_full_fp16_mspk"
+    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5" # Updated to latest model
 ):
     global _MODEL, _TOKENIZER, _SNAC
 
