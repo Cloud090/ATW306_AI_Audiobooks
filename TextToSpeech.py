@@ -160,7 +160,7 @@ def _combine_wavs(folder):
 # Load Orpheus + SNAC once and cache globally.
 def preload_model(
     local_model_path="models/orpheus_merged_cremad_plus_steven_fp16_mspk_v5",
-    hf_repo_id="Smallan/orpheus_merged_cremad_plus_steven_fp16_mspk_v5" # Update to latest model as needed
+    hf_repo_id="Smallan/final_fine_tune_fp16" # Update to latest model as needed
 ):
     global _MODEL, _TOKENIZER, _SNAC
 
