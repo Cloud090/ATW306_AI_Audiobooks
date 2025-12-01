@@ -177,7 +177,7 @@ def GenerateAudiobook(text, persona, sfxStyle, voiceAudio=None, voiceName=None):
         None,
     )
 
-    speaker_id = voiceName if voiceName else "1002"
+    speaker_id = voiceName if voiceName else "2001"
 
     try:
         converted_json_blocks = ConvertTagToJSON.convert_list_of_tagged_texts(
@@ -402,3 +402,4 @@ print("Server running.")
 # Repeating while loop, to keep the script from ending while the API runs.
 while True:
     time.sleep(60)
+
