@@ -1,2 +1,0 @@
-python InitialiseGradio.py
-pause

@@ -1,2 +1,0 @@
-python DownloadTagModels.py
-pause

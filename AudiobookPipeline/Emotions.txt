@@ -1,5 +1,0 @@
-Angry
-Happy
-Sad
-Fear
-Disgust
