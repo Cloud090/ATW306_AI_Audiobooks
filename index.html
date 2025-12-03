@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Narrify</title>
+    
+    <!-- ===================================
+         EXTERNAL STYLESHEET
+         ===================================
+         Links to styles.css which contains all visual styling for the app
+    -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- ===================================
+         LIBRARY DEPENDENCIES
+         ===================================
+         These libraries provide core functionality for reading different book formats
+    -->
+    
+    <!-- JSZip: JavaScript library for creating, reading and editing .zip files
+         Required for EPUB files since EPUBs are essentially ZIP archives containing HTML/CSS/images
+    -->
+    <script src="./node_modules/jszip/dist/jszip.min.js"></script>
+    
+    <!-- epub.js: Comprehensive library for parsing and rendering EPUB ebook files
+         Handles EPUB structure, metadata extraction, content rendering, and navigation
+    -->
+    <script src="./node_modules/epubjs/dist/epub.min.js"></script>
+    
+    <!-- PDF.js: Mozilla's PDF rendering library that enables PDF display in browsers
+         Allows us to render PDF pages as canvas elements without external plugins
+         Version 3.11.174 loaded from CDN for reliability
+    -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <!-- Configure PDF.js worker script
+         PDF.js uses a Web Worker for background processing to avoid blocking the main thread
+         This ensures smooth UI performance while parsing/rendering large PDF files
+    -->
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+</head>
+<body>
+
+    <!-- ===================================
+         UPLOAD BOOK MODAL
+         ===================================
+         Modal dialog for uploading new EPUB/PDF files to the bookshelf
+         Includes drag-and-drop zone and metadata input fields
+         Initially hidden - shown when user clicks "ADD BOOK" button
+    -->
+    <div class="modal-overlay" id="upload-modal-overlay">
+        <div class="modal-content" id="upload-modal-content">
+            <h2>Upload Book</h2>
+
+            <!-- Drag & drop zone for file uploads
+                 Users can either drag files here or click "Browse" link to open file picker
+                 Accepts EPUB and PDF file formats
+            -->
+            <div class="drop-zone" id="drop-zone">
+                <div class="drop-zone-icon">
+                    <!-- SVG cloud upload icon for visual indication of upload area -->
+                    <div class="cloud-icon">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Upload arrow pointing upward -->
+                            <path d="M11 15h2V9h3l-4-5-4 5h3z"></path>
+                            <!-- Cloud/tray base -->
+                            <path d="M20 18H4v-7H2v7c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2v-7h-2v7z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <!-- User instruction text with clickable browse link -->
+                Drag & drop files or <a href="#" id="browse-link">Browse</a>
+                <!-- Supported file format information -->
+                <span class="drop-zone-support">Supported formats: EPUB, PDF</span>
+            </div>
+
+            <!-- Container for displaying list of uploaded files
+                 Dynamically populated by JavaScript when files are added
+                 Shows file name and remove button for each file
+            -->
+            <div class="upload-list-container"></div>
+
+            <!-- Book metadata input section
+                 Allows user to manually enter or edit book information
+                 Title, Author, and Year are extracted automatically from EPUB metadata when possible
+            -->
+            <div class="form-group">
+                <label for="book-title">Title</label>
+                <input type="text" id="book-title">
+            </div>
+            <div class="form-group">
+                <label for="book-author">Author</label>
+                <input type="text" id="book-author">
+            </div>
+            <div class="form-group">
+                <label for="book-year">Year Published</label>
+                <input type="text" id="book-year">
+            </div>
+
+            <!-- Action buttons for upload modal
+                 CANCEL: Closes modal and discards any changes
+                 UPLOAD BOOK: Validates input and proceeds to configure modal
+            -->
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancel-upload-btn">CANCEL</button>
+                <button class="btn btn-primary" id="confirm-upload-btn">UPLOAD BOOK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         MAIN BOOKSHELF CONTAINER
+         ===================================
+         Primary view showing all uploaded books in a grid layout
+         This is the landing page users see when opening the app
+    -->
+    <div class="container" id="main-content-area">
+        <!-- Top header bar with app title and add book button -->
+        <header class="header">
+            <h1>Bookshelf</h1>
+            <!-- Primary action button to initiate book upload flow
+                 Clicking opens the upload modal above
+            -->
+            <button class="add-book-btn" id="add-book">
+                <span>+</span> ADD BOOK
+            </button>
+        </header>
+
+        <!-- Main content area containing the book grid
+             Scrollable when books exceed viewport height
+        -->
+        <main class="bookshelf-container">
+            <!-- Grid layout that displays all books
+                 Each book is represented by: cover image, title, author, and progress bar
+                 Books are dynamically created and inserted here by JavaScript
+                 Shows "Empty State" message when no books exist
+            -->
+            <div class="bookshelf-grid" id="bookshelf-grid">
+                <!-- Books will be dynamically inserted here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         DELETE BOOK MODAL
+         ===================================
+         Confirmation dialog shown when user clicks X button on a book
+         Prevents accidental deletion by requiring explicit confirmation
+    -->
+    <div class="modal-overlay" id="delete-modal-overlay">
+        <div class="delete-modal-content">
+            <h2>Delete Book?</h2>
+            <!-- Dynamic text showing which book will be deleted
+                 Book title is inserted into the span by JavaScript
+            -->
+            <p>Are you sure you want to delete "<span id="delete-book-title"></span>" from your bookshelf?</p>
+            <div class="modal-buttons" style="display: flex; justify-content: center; gap: 10px;">
+                <!-- CANCEL: Close modal without deleting -->
+                <button class="btn btn-secondary" id="cancel-delete-btn" style="background-color: #5a6268;">CANCEL</button>
+                <!-- DELETE: Permanently removes book from bookshelf
+                     Red styling indicates destructive action
+                -->
+                <button class="btn btn-primary" id="confirm-delete-btn" style="background-color: #ff4d4d;">DELETE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         BOOK READER VIEW
+         ===================================
+         Full-screen reading interface that replaces bookshelf view
+         Displays book content in two-page spread (like a physical book)
+         Includes audio controls for text-to-speech narration
+         Initially hidden - shown when user clicks on a book
+    -->
+    <div id="book-reader-view" class="hidden">
+        <!-- Invisible hover trigger zone in top-left corner
+             When user hovers here, the reader header fades into view
+             Provides clean reading experience while keeping navigation accessible
+        -->
+        <div class="reader-header-trigger"></div>
+        
+        <!-- Floating header that appears on hover
+             Shows back button and current book information
+             Fades out when mouse moves away for distraction-free reading
+        -->
+        <div class="reader-header">
+            <!-- Back button returns user to main bookshelf
+                 Saves reading progress automatically before navigating away
+            -->
+            <button class="reader-back-btn" id="reader-back-btn">
+                <span>←</span> BACK
+            </button>
+            <!-- Book metadata display section -->
+            <div class="reader-title-section">
+                <!-- Current book title - populated dynamically -->
+                <div class="reader-title" id="reader-title">Book Title</div>
+                <!-- Author and year info - populated dynamically -->
+                <div class="reader-metadata" id="reader-metadata">Author • Year</div>
+            </div>
+        </div>
+
+        <!-- Main reading content area
+             Contains two page containers for side-by-side display
+             Mimics the experience of reading a physical open book
+        -->
+        <div class="reader-content">
+            <!-- Left page container -->
+            <div class="reader-page-left" id="reader-page-left">
+                <!-- Content wrapper for left page
+                     For EPUB: Contains formatted HTML text with styling
+                     For PDF: Contains rendered PDF page as canvas/image
+                     Class 'epub-content' is added dynamically for EPUBs
+                -->
+                <div class="reader-page-content" id="reader-page-left-content">
+                    <h2>Chapter Title</h2>
+                    <p>Content loading...</p>
+                </div>
+            </div>
+            <!-- Right page container (same structure as left) -->
+            <div class="reader-page-right" id="reader-page-right">
+                <div class="reader-page-content" id="reader-page-right-content">
+                    <h2>Chapter Title</h2>
+                    <p>Content loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================================
+             AUDIO PLAYBACK CONTROLS
+             ===================================
+             Text-to-speech controls for listening to book narration
+             Initially hidden - shown when audiobook is generated
+             Positioned at bottom of screen, above footer
+        -->
+        <div class="audio-controls">
+            <!-- Chapter selection dropdown
+                 Populated with all chapters/sections from the book
+                 Changing chapter updates the displayed content and audio position
+            -->
+            <div class="audio-control-group">
+                <label>Chapter:</label>
+                <select class="chapter-select" id="chapter-select">
+                    <option>Chapter 1</option>
+                </select>
+            </div>
+            
+            <!-- Page selection dropdown
+                 Only visible for paginated content (PDFs)
+                 Allows jumping to specific page spreads within current chapter
+                 Hidden for EPUB files which use continuous flow
+            -->
+            <div class="audio-control-group" id="page-select-group" style="display: none;">
+                <label>Page:</label>
+                <select class="page-select" id="page-select">
+                    <option>Page 1-2</option>
+                </select>
+            </div>
+
+            <!-- Central playback control buttons
+                 Positioned in center of audio bar for easy access
+            -->
+            <div class="audio-playback-controls">
+                <!-- Rewind button: Jumps back 10 seconds in narration -->
+                <button class="audio-btn" id="rewind-btn" title="Rewind 10s">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                        <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                    </svg>
+                </button>
+                <!-- Play/Pause toggle button
+                     Large central button - changes icon based on playback state
+                     ▶ when paused, ⏸ when playing
+                -->
+                <button class="audio-btn play" id="play-pause-btn" title="Play/Pause">▶</button>
+                <!-- Forward button: Jumps ahead 10 seconds in narration -->
+                <button class="audio-btn" id="forward-btn" title="Forward 10s">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                        <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Playback adjustment controls
+                 Speed and volume sliders positioned on right side
+                 Sliders expand on hover for space efficiency
+            -->
+            <div class="audio-sliders-group">
+                <!-- Speed control: Adjusts narration playback rate
+                     Range: 0.5x (slow) to 2.0x (fast)
+                     Default: 1.0x (normal speed)
+                     Updates in 0.25x increments
+                -->
+                <div class="audio-control-group" id="speed-control-group">
+                    <label>Speed:</label>
+                    <input type="range" id="speed-slider" min="0.5" max="2" step="0.25" value="1">
+                    <!-- Displays current speed value (e.g., "1.0x") -->
+                    <span class="speed-value" id="speed-value">1.0x</span>
+                </div>
+                <!-- Volume control: Adjusts audio output level
+                     Range: 0 (muted) to 100 (full volume)
+                     Default: 100
+                -->
+                <div class="audio-control-group" id="volume-control-group">
+                    <label>Volume:</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="100">
+                </div>
+            </div>
+        </div>
+
+        <!-- Reader footer with page navigation
+             Always visible at bottom of reader view
+             Allows manual navigation between pages/sections
+        -->
+        <div class="reader-footer">
+            <div class="reader-nav-controls">
+                <!-- Previous page button - disabled on first page -->
+                <button class="reader-nav-btn" id="prev-page-btn">◀ Previous</button>
+                <!-- Current page indicator showing position in book -->
+                <span class="page-indicator" id="page-indicator">Page 1 of 10</span>
+                <!-- Next page button - disabled on last page -->
+                <button class="reader-nav-btn" id="next-page-btn">Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         CONFIGURE AUDIOBOOK MODAL
+         ===================================
+         Advanced configuration screen shown after initial upload
+         Allows customisation of audiobook generation parameters
+         Two-column layout: metadata/settings on left, content preview on right
+    -->
+    <div class="modal-overlay" id="configure-modal-overlay">
+        <div class="modal-content" id="configure-modal-content">
+            <h2>Configure Audiobook</h2>
+            <div class="configure-layout">
+                <!-- Left column: File info, metadata, and narration settings -->
+                <div class="configure-left">
+                    <!-- Read-only field showing uploaded file name -->
+                    <div class="form-group">
+                        <label>File Uploaded</label>
+                        <input type="text" id="config-file-name" readonly>
+                    </div>
+                    
+                    <!-- Editable book metadata fields
+                         Pre-populated from upload modal
+                         Can be modified before audiobook generation
+                    -->
+                    <div class="form-group">
+                        <label for="config-book-title">Title</label>
+                        <input type="text" id="config-book-title">
+                    </div>
+                    <div class="form-group">
+                        <label for="config-book-author">Author</label>
+                        <input type="text" id="config-book-author">
+                    </div>
+                    <div class="form-group">
+                        <label for="config-book-year">Year Published</label>
+                        <input type="text" id="config-book-year">
+                    </div>
+                    
+                    <!-- Book cover preview
+                         Shows extracted cover image or default placeholder
+                         For EPUB: extracted from package metadata
+                         For PDF: generated from first page
+                    -->
+                    <div class="form-group config-cover-section">
+                        <label>Book Cover</label>
+                        <div id="config-cover-preview"></div>
+                    </div>
+                    
+                    <!-- ===============================
+                         AUDIOBOOK NARRATION SETTINGS
+                         ===============================
+                         These controls determine how the text-to-speech
+                         audio will be generated
+                    -->
+                    
+                    <!-- Narrator Persona: Emotional tone/style of narration
+                         Options affect pacing, inflection, and expressiveness
+                         - Neutral: Balanced, standard reading
+                         - Unemotional: Flat, documentary-style
+                         - Calm: Soothing, bedtime-story tone
+                         - Dramatic: Expressive, theatrical reading
+                    -->
+                    <div class="form-group">
+                        <label for="config-persona">Narrator Persona</label>
+                        <select id="config-persona">
+                            <option value="Neutral">Neutral</option>
+                            <option value="Unemotional">Unemotional</option>
+                            <option value="Calm">Calm</option>
+                            <option value="Dramatic">Dramatic</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Narrator Voice: Actual voice profile to use
+                         Voice IDs correspond to different TTS voice models
+                         Each voice has unique characteristics (pitch, accent, gender)
+                    -->
+                    <div class="form-group">
+                        <label for="config-voice">Narrator Voice</label>
+                        <select id="config-voice">
+                            <option value="1001">Voice A</option>
+                            <option value="1002">Voice B</option>
+                            <option value="1003">Voice C</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Sound Effects Intensity: Background audio enhancement level
+                         Adds ambient sounds, music, and audio effects
+                         - None: Pure voice narration
+                         - Subtle: Light background ambience
+                         - Balanced: Moderate sound design
+                         - Cinematic: Full audio production with music/effects
+                    -->
+                    <div class="form-group">
+                        <label for="config-sfx-intensity">Sound Effect(s) Intensity</label>
+                        <select id="config-sfx-intensity">
+                            <option value="None">None</option>
+                            <option value="subtle">Subtle</option>
+                            <option value="Balanced">Balanced</option>
+                            <option value="cinematic">Cinematic</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Narrator Speed: Base playback speed for generation
+                         Different from the speed slider in player (which adjusts on-the-fly)
+                         This bakes the speed into the generated audio
+                         1.0x = Normal reading pace
+                    -->
+                    <div class="form-group">
+                        <label for="config-narrator-speed">Narrator Speed</label>
+                        <select id="config-narrator-speed">
+                            <option value="1.0">1.0x (Normal)</option>
+                            <option value="0.75">0.75x</option>
+                            <option value="1.25">1.25x</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Right column: Live preview of book content
+                     Shows how the book will appear in the reader
+                     Allows navigation through pages before committing to generation
+                -->
+                <div class="configure-right">
+                    <!-- Preview header with page number and navigation -->
+                    <div class="preview-header">
+                        <label>Preview - Page <span id="preview-page-number">1</span></label>
+                        <div class="preview-navigation">
+                            <!-- Previous page button - disabled on first page -->
+                            <button class="preview-nav-btn" id="preview-prev-btn" disabled>&lt; Previous</button>
+                            <!-- Page counter showing current/total -->
+                            <span class="preview-page-info"><span id="preview-current-page">1</span> / <span id="preview-total-pages">1</span></span>
+                            <!-- Next page button - disabled on last page -->
+                            <button class="preview-nav-btn" id="preview-next-btn">Next &gt;</button>
+                        </div>
+                    </div>
+                    <!-- Scrollable preview pane
+                         Displays actual book content formatted as it will appear in reader
+                         For EPUB: Rendered HTML from book sections
+                         For PDF: Rasterised page images
+                    -->
+                    <div class="preview-pane" id="preview-pane">
+                        <h3>CHAPTER 1</h3>
+                        <p>Loading preview...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action buttons for configure modal -->
+            <div class="modal-buttons">
+                <!-- CANCEL: Exit configuration and return to bookshelf without saving -->
+                <button class="btn btn-secondary" id="cancel-configure-btn">CANCEL</button>
+                <!-- BACK: Return to upload modal to change file or metadata -->
+                <button class="btn btn-tertiary" id="back-configure-btn">BACK</button>
+                <!-- GENERATE AUDIOBOOK: Begin TTS audio generation with current settings
+                     Opens "Generating" modal and starts processing
+                -->
+                <button class="btn btn-primary" id="generate-audiobook-btn">GENERATE AUDIOBOOK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         GENERATING AUDIOBOOK MODAL
+         ===================================
+         Progress indicator shown during audiobook generation
+         Displays status messages and animated progress bar
+         Cannot be dismissed except by canceling generation
+    -->
+    <div class="modal-overlay" id="generating-modal-overlay">
+        <div class="modal-content-simple" id="generating-modal-content">
+            <h2>Generating...</h2>
+            <!-- Animated progress bar showing generation completion
+                 Width is updated dynamically by JavaScript (0% to 100%)
+            -->
+            <div class="progress-bar-container" style="height: 10px; margin-top: 15px;">
+                <div class="progress-bar blue" id="generation-progress" style="width: 0%;"></div>
+            </div>
+            <!-- Status text describing current generation step
+                 Updated throughout process:
+                 - "Initialising..."
+                 - "Processing chapter X of Y..."
+                 - "Generating audio..."
+                 - "Finalising..."
+            -->
+            <span id="generation-status" style="font-size: 14px; margin-top: 10px; display: block;">
+                Initialising...
+            </span>
+            <div class="modal-buttons" style="margin-top: 25px;">
+                <!-- CANCEL: Abort generation process
+                     Stops audio processing and returns to configure modal
+                -->
+                <button class="btn btn-secondary" id="cancel-generation-btn">CANCEL</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================================
+         GENERATION COMPLETE MODAL
+         ===================================
+         Success confirmation shown when audiobook generation finishes
+         Offers two paths: return to bookshelf or begin reading/listening
+    -->
+    <div class="modal-overlay" id="complete-modal-overlay">
+        <div class="modal-content-simple" id="complete-modal-content">
+            <!-- Success heading in green to indicate completion -->
+            <h2 style="color: #28a745;">Complete!</h2>
+            <div class="modal-buttons" style="margin-top: 25px; justify-content: center;">
+                <!-- ADD TO BOOKSHELF: Save book and return to main bookshelf view
+                     Book appears in grid with "To Read" status
+                -->
+                <button class="btn btn-primary" id="add-to-bookshelf-btn">ADD TO BOOKSHELF</button>
+                <!-- LISTEN & READ NOW: Save book and immediately open reader view
+                     Audio controls are active and ready to play
+                     Green styling emphasises this as the primary action
+                -->
+                <button class="btn btn-primary" id="listen-now-btn" style="background-color: #28a745;">LISTEN & READ NOW</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         MAIN APPLICATION SCRIPT
+         ===================================
+         Links to renderer.js which contains all JavaScript logic:
+         - Event listeners for all buttons and interactions
+         - Modal show/hide management
+         - File upload and parsing (EPUB/PDF)
+         - Book data storage and retrieval
+         - Reader view rendering and navigation
+         - Audio playback controls and synchronisation
+         - Progress tracking and persistence
+         
+         'defer' attribute ensures script runs after HTML is fully parsed
+    -->
+    <script src="renderer.js" defer></script>
+
+</body>
+</html>
