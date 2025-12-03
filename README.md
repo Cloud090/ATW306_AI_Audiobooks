@@ -9,7 +9,7 @@ Multiple working branches have been left for historical purposes, but everything
 The frontend is located in the "Frontend" folder within the main branch when cloned and can be run in either of the following two ways:
 
 ### Option 1:
-1. Run Start.bat contained within the Fronend folder. If NodeJS isn't installed it will be installed & nodejs will install all required dependencies for the fronend.
+1. Run Start.bat contained within the Fronend folder. If NodeJS &/or Electron aren't installed it will be installed & nodejs will install all required dependencies for the fronend.
 2. Enjoy :)
 
 ### Option 2:
@@ -17,8 +17,9 @@ The frontend is located in the "Frontend" folder within the main branch when clo
    a. Install via CMD using: ```winget install OpenJS.NodeJS```
    b. Install using the installer from nodejs's website: https://nodejs.org/en/download
 2. open to the directory the frontend files are contained within in CMD
-3. Run ```npm start```
-4. Enjoy :)
+3. Ensure electron is intalled by running ```npm install --save-dev electron```
+4. Run ```npm start```
+5. Enjoy :)
 
 ## Gradio Interface
 
