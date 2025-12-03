@@ -2,6 +2,8 @@
 
 The following repository contains the codebase for an emotional audiobook generator. It comprises of two sections, which will need to be set up and run separately - the Frontend, and the Gradio Interface.
 
+Multiple working branches have been left for historical purposes, but everything needed to run the audiobook generator is in the main branch.
+
 ## Frontend
 
 ## Gradio Interface
