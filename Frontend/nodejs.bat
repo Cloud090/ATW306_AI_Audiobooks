@@ -32,6 +32,4 @@ if %errorlevel%==0 (
 
 :end
 echo Done.
-
-npm start
 pause
