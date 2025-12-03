@@ -1,10 +1,24 @@
 # ATW306 - Emotional Audiobook Project
-
+#Github: https://github.com/Cloud090/ATW306_AI_Audiobooks
 The following repository contains the codebase for an emotional audiobook generator. It comprises of two sections, which will need to be set up and run separately - the Frontend, and the Gradio Interface.
 
 Multiple working branches have been left for historical purposes, but everything needed to run the audiobook generator is in the main branch.
 
 ## Frontend
+
+The frontend can be run in either of the two ways:
+
+### Option 1:
+1. Run Start.bat contained within the Fronend folder. If NodeJS isn't installed it will be installed & nodejs will install all required dependencies for the fronend.
+2. Enjoy :)
+
+### Option 2:
+1. Ensure NodeJS is installed if not either:
+   a. Install via CMD using: ```winget install OpenJS.NodeJS```
+   b. Install using the installer from nodejs's website: https://nodejs.org/en/download
+2. open to the directory the frontend files are contained within in CMD
+3. Run ```npm start```
+4. Enjoy :)
 
 ## Gradio Interface
 
