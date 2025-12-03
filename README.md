@@ -6,7 +6,7 @@ Multiple working branches have been left for historical purposes, but everything
 
 ## Frontend
 
-The frontend can be run in either of the two ways:
+The frontend is located in the "Frontend" folder within the main branch when cloned and can be run in either of the following two ways:
 
 ### Option 1:
 1. Run Start.bat contained within the Fronend folder. If NodeJS isn't installed it will be installed & nodejs will install all required dependencies for the fronend.
