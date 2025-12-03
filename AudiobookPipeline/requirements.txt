@@ -1,0 +1,16 @@
+torch
+soundfile
+numpy
+tqdm
+snac
+scipy
+noisereduce
+transformers
+nltk
+pydub
+faster-whisper
+gradio
+gradio-client
+accelerate
+nn-torch
+gdown
