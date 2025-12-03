@@ -8,6 +8,8 @@ Multiple working branches have been left for historical purposes, but everything
 
 ## Gradio Interface
 
+The Gradio Interface is located in the "GradioInterface" folder. 
+
 To set up the Gradio Interface, unzip all files locally, then run "DownloadTagModels.bat" to download the text tagging models (these were too large to fit on free Github). To start it, first visit "https://audioapi-g2ru.onrender.com/" in your browser, to initialise the Render static endpoint (when the Gradio API is not running, this times out). Then run "InitialiseGradio.bat", and wait for Gradio to initialise. No need to do anything else from this point - all requests are managed by the Frontend, and this just runs in the background.
 
 To Summarise:
