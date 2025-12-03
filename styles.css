@@ -1,261 +1,382 @@
 /* =========================================
    GLOBAL STYLES & RESET
    =========================================
+   These styles establish the baseline appearance
+   and behaviour for the entire application.
 */
+
 body, html {
-    margin: 0;
-    padding: 0;
+    margin: 0;              /* Remove default browser margins */
+    padding: 0;             /* Remove default browser padding */
+    /* System font stack for native look across platforms */
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    background-color: #1a1a2e;
-    color: #fff;
-    height: 100vh;
-    overflow: hidden; /* Prevent global scroll */
+    background-color: #1a1a2e;  /* Dark blue-grey background */
+    color: #fff;                 /* White text for contrast */
+    height: 100vh;               /* Fill entire viewport height */
+    overflow: hidden;            /* Prevent global scroll - scrolling handled by child elements */
 }
 
+/* Utility class to hide elements completely */
 .hidden {
-    display: none !important;
+    display: none !important;  /* !important ensures it overrides other display rules */
 }
 
+/* Main application container - uses flexbox for layout */
 .container {
     display: flex;
-    flex-direction: column;
-    height: 100%;
+    flex-direction: column;    /* Stack children vertically (header, content, footer) */
+    height: 100vh;             /* Takes full viewport height */
+    width: 100vw;              /* Takes full viewport width */
+    overflow: hidden;          /* Prevents double scrollbars by delegating scroll to children */
 }
 
 /* =========================================
    MAIN APP HEADER
    =========================================
+   Top navigation bar with app title and add book button
 */
+
 .header {
     display: flex;
-    align-items: center;
-    padding: 20px 30px;
-    background-color: #1f1f33;
-    border-bottom: 1px solid #333;
+    align-items: center;           /* Vertically centre header contents */
+    padding: 20px 30px;            /* Comfortable spacing around header items */
+    background-color: #1f1f33;     /* Slightly lighter than body for visual separation */
+    border-bottom: 1px solid #333; /* Subtle divider line */
 }
 
 .header h1 {
-    margin: 0;
-    font-size: 24px;
+    margin: 0;         /* Remove default h1 margin */
+    font-size: 24px;   /* Large, readable title size */
 }
 
+/* Button to trigger "Add Book" modal */
 .add-book-btn {
     display: flex;
-    align-items: center;
-    background-color: #007bff;
+    align-items: center;           /* Centre icon and text vertically */
+    background-color: #007bff;     /* Bootstrap-style primary blue */
     color: white;
-    border: none;
-    border-radius: 5px;
-    padding: 10px 15px;
+    border: none;                  /* Remove default button border */
+    border-radius: 5px;            /* Rounded corners */
+    padding: 10px 15px;            /* Comfortable click target */
     font-size: 16px;
     font-weight: bold;
-    cursor: pointer;
-    margin-left: 20px;
-    transition: background-color 0.2s;
+    cursor: pointer;               /* Show pointer on hover */
+    margin-left: 20px;             /* Space from h1 title */
+    transition: background-color 0.2s;  /* Smooth colour change on hover */
 }
 
 .add-book-btn:hover {
-    background-color: #0056b3;
+    background-color: #0056b3;  /* Darker blue on hover for feedback */
 }
 
+/* Plus icon inside add button */
 .add-book-btn span {
-    font-size: 24px;
-    margin-right: 8px;
-    line-height: 1;
+    font-size: 24px;       /* Larger than button text */
+    margin-right: 8px;     /* Space between icon and text */
+    line-height: 1;        /* Prevent extra vertical spacing */
 }
 
 /* =========================================
    BOOKSHELF & GRID
    =========================================
+   Main scrollable area containing the book grid
 */
+
+/* Main scrollable area containing the book grid */
 .bookshelf-container {
-    flex-grow: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 30px;
+    flex-grow: 1;           /* Take up all remaining vertical space */
+    height: 100%;           /* Fill the available vertical space */
+    min-height: 0;          /* Critical: allows flexbox child to shrink below content size */
+    width: 100%;            /* Constrain width to window size */
+    
+    /* SCROLLING: This ensures you can always scroll down to see bottom rows */
+    overflow-y: auto;       /* Enable vertical scrolling when content exceeds height */
+    overflow-x: hidden;     /* Prevent horizontal scrollbar */
+    
+    padding: 30px;          /* Space around the book grid - moved here to prevent scrollbar issues */
+    box-sizing: border-box; /* Include padding in width/height calculations */
+    display: block;         /* Default block display */
 }
 
-.bookshelf-grid {
-    display: flex;
-    gap: 25px;
-    min-width: min-content; /* Ensure grid doesn't shrink below content width */
-}
-
-.book-item {
-    display: flex;
-    flex-direction: column;
-    cursor: pointer;
-    flex-shrink: 0;
-    width: 180px;
-    position: relative;
-}
-
-.book-cover {
+/* Special state when bookshelf has no books - centres empty state message */
+.bookshelf-container.empty {
+    display: flex !important;       /* Override block display */
+    flex-direction: column;         /* Stack children vertically */
+    align-items: center;            /* Centre horizontally */
+    justify-content: center;        /* Centre vertically */
+    padding: 0 !important;          /* Remove padding when empty */
+    overflow: hidden !important;    /* No scrolling needed when empty */
     width: 100%;
-    aspect-ratio: 2 / 3;
-    background-color: #555;
-    border-radius: 5px;
-    margin-bottom: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    transition: transform 0.2s ease-out;
-    background-size: cover;
-    background-position: center;
-    position: relative;
+    height: 100%;
 }
 
-.book-item:hover .book-cover {
-    transform: translateY(-5px);
-}
-
-.delete-book-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background-color: rgba(255, 77, 77, 0.9);
-    border: none;
-    border-radius: 5px;
-    width: 35px;
-    height: 35px;
-    display: none;
+/* Grid styling when in empty state */
+.bookshelf-container.empty .bookshelf-grid {
+    display: flex !important;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    height: auto;
+    gap: 0;  /* No gap needed for empty state */
+}
+
+/* Pseudo-element trick to help centre empty state vertically */
+.bookshelf-grid:empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bookshelf-grid:empty::before {
+    content: "";      /* Empty content creates the element */
+    height: 100%;     /* Full height to enable centering */
+}
+
+/* Container for empty state message and button */
+.empty-state {
+    display: flex;
+    flex-direction: column;   /* Stack text and button vertically */
+    align-items: center;      /* Centre horizontally */
+    justify-content: center;  /* Centre vertically */
+    text-align: center;       /* Centre text alignment */
+    width: 100%;              /* Allow text to take full width if needed */
+    max-width: 500px;         /* Keep it readable - prevent overly wide text */
+}
+
+/* Main grid layout for book items - wraps into multiple rows */
+.bookshelf-grid {
+    display: flex;              /* Use Flexbox for flexible layout */
+    flex-direction: row;        /* Arrange books left to right */
+    flex-wrap: wrap;            /* Allow books to wrap to next line when full */
+    min-height: 0;              /* allows grid to shrink fully */
+    padding: 0;                 /* No padding here - handled by container to prevent scrollbar */
+    
+    justify-content: flex-start; /* Start books from the left edge */
+    align-content: flex-start;   /* Stack rows from the top */
+    
+    gap: 30px;                  /* Space between books (both horizontal and vertical) */
+    width: 100%;                /* Take full width of container */
+}
+
+/* Individual book item container */
+.book-item {
+    display: flex;
+    flex-direction: column;     /* Stack cover, title, author, progress vertically */
+    position: relative;         /* For positioning delete button */
+    cursor: pointer;            /* Show clickable cursor */
+    
+    flex-shrink: 0;             /* Never let the book shrink below its set width */
+    flex-grow: 0;               /* Never let the book grow/stretch */
+    width: 180px;               /* Keeps books a uniform width for consistent grid */
+    
+    margin: 0;                  /* No extra margin (gap handles spacing) */
+}
+
+/* Book cover image/background */
+.book-cover {
+    width: 100%;                /* Full width of book-item */
+    aspect-ratio: 2 / 3;        /* Maintain standard book proportions (e.g., 180px × 270px) */
+    background-color: #555;     /* Fallback grey for books without covers */
+    border-radius: 5px;         /* Rounded corners */
+    margin-bottom: 10px;        /* Space before title */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);  /* Drop shadow for depth */
+    transition: transform 0.2s ease-out;      /* Smooth animation on hover */
+    background-size: cover;     /* Ensure cover image fills the space */
+    background-position: center; /* Centre the cover image */
+    position: relative;         /* For positioning child elements */
+}
+
+/* Media query for smaller screens/windows - make books smaller
+   Prevents bottom rows from being cut off on laptops */
+@media (max-height: 800px) {
+    .book-item {
+        width: 150px;   /* Reduce book width */
+    }
+    .bookshelf-grid {
+        gap: 20px;      /* Reduce gap between books */
+    }
+    .book-title {
+        font-size: 13px; /* Slightly smaller text */
+    }
+}
+
+/* Lift book cover slightly on hover for interactive feedback */
+.book-item:hover .book-cover {
+    transform: translateY(-5px);  /* Move up 5 pixels */
+}
+
+/* Delete button (X) that appears on book cover hover */
+.delete-book-btn {
+    position: absolute;         /* Position relative to book-cover */
+    top: 5px;                   /* 5px from top edge */
+    right: 5px;                 /* 5px from right edge */
+    background-color: rgba(255, 77, 77, 0.9);  /* Semi-transparent red */
+    border: none;
+    border-radius: 5px;
+    width: 35px;                /* Square button */
+    height: 35px;
+    display: none;              /* Hidden by default - shown on hover */
+    align-items: center;        /* Centre icon vertically */
+    justify-content: center;    /* Centre icon horizontally */
     cursor: pointer;
     font-size: 18px;
     color: white;
-    z-index: 10;
-    transition: background-color 0.2s;
+    z-index: 10;                /* Above cover image */
+    transition: background-color 0.2s;  /* Smooth colour change */
 }
 
+/* Darker red when hovering over delete button */
 .delete-book-btn:hover {
-    background-color: rgba(255, 0, 0, 1);
+    background-color: rgba(255, 0, 0, 1);  /* Fully opaque bright red */
 }
 
+/* Show delete button when hovering over book item */
 .book-item:hover .delete-book-btn {
-    display: flex;
+    display: flex;  /* Make button visible */
 }
 
+/* SVG icon inside delete button */
 .delete-book-btn svg {
     width: 20px;
     height: 20px;
-    stroke: white;
-    stroke-width: 2;
+    stroke: white;      /* White X icon */
+    stroke-width: 2;    /* Thickness of X lines */
 }
 
+/* Book title text below cover */
 .book-title {
     font-size: 14px;
     font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap;        /* Don't wrap to multiple lines */
+    overflow: hidden;           /* Hide overflowing text */
+    text-overflow: ellipsis;    /* Show "..." when text is too long */
 }
 
+/* Author name below title */
 .book-author {
     font-size: 12px;
-    color: #ccc;
+    color: #ccc;  /* Lighter grey for secondary information */
 }
 
+/* Container for progress bar */
 .progress-bar-container {
-    width: 100%;
-    background-color: #333;
-    border-radius: 5px;
-    height: 20px;
-    margin-top: 8px;
-    overflow: hidden;
-    position: relative;
+    width: 100%;                /* Full width of book item */
+    background-color: #333;     /* Dark grey background track */
+    border-radius: 5px;         /* Rounded corners */
+    height: 20px;               /* Fixed height */
+    margin-top: 8px;            /* Space above progress bar */
+    overflow: hidden;           /* Clip progress bar to rounded corners */
+    position: relative;         /* For absolute positioning of children */
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center;        /* Centre text vertically */
+    justify-content: center;    /* Centre text horizontally */
 }
 
+/* Filled portion of progress bar */
 .progress-bar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 0%;
-    transition: width 0.3s ease;
+    position: absolute;         /* Position relative to container */
+    left: 0;                    /* Start from left edge */
+    top: 0;                     /* Start from top edge */
+    height: 100%;               /* Full height of container */
+    width: 0%;                  /* Width set dynamically by JavaScript */
+    transition: width 0.3s ease; /* Smooth animation when width changes */
 }
 
-.progress-bar.blue { background-color: #007bff; }
-.progress-bar.green { background-color: #28a745; }
-.progress-bar.yellow { background-color: #ffc107; }
+/* Different colours for progress states */
+.progress-bar.blue { background-color: #007bff; }    /* To Read */
+.progress-bar.green { background-color: #28a745; }   /* Reading */
+.progress-bar.yellow { background-color: #ffc107; }  /* Completed */
 
+/* Text displaying percentage/page info on progress bar */
 .progress-text {
-    position: relative;
-    z-index: 1;
+    position: relative;         /* Above progress bar fill */
+    z-index: 1;                 /* Ensure text is on top */
     font-size: 11px;
     font-weight: bold;
     color: white;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);  /* Shadow for readability */
 }
 
 /* =========================================
    MODALS
    =========================================
+   Overlay and modal windows for various interactions
 */
+
+/* Full-screen overlay that darkens background when modal is open */
 .modal-overlay {
-    position: fixed;
+    position: fixed;            /* Fixed to viewport */
     top: 0;
     left: 0;
-    width: 100%;
+    width: 100%;                /* Cover entire screen */
     height: 100%;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.6);  /* Semi-transparent black */
     display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+    align-items: center;        /* Centre modal vertically */
+    justify-content: center;    /* Centre modal horizontally */
+    z-index: 1000;              /* Above all other content */
+    visibility: hidden;         /* Hidden by default */
+    opacity: 0;                 /* Transparent by default */
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;  /* Smooth fade in/out */
 }
 
+/* Visible state for modal overlay - toggled by JavaScript */
 .modal-overlay.visible {
-    visibility: visible;
-    opacity: 1;
+    visibility: visible;  /* Make visible */
+    opacity: 1;           /* Fully opaque */
 }
 
+/* Modal content box */
 .modal-content {
-    background-color: #2c2c44;
+    background-color: #2c2c44;  /* Dark purple-grey background */
     padding: 25px;
-    border-radius: 8px;
-    width: 500px;
-    max-width: 90%;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    border-radius: 8px;         /* Rounded corners */
+    width: 500px;               /* Standard width */
+    max-width: 90%;             /* Responsive: max 90% of screen width */
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);  /* Drop shadow for depth */
 }
 
+/* Modal heading */
 .modal-content h2 {
-    margin-top: 0;
-    text-align: center;
-    font-weight: 500;
+    margin-top: 0;      /* Remove top margin */
+    text-align: center; /* Centre align heading */
+    font-weight: 500;   /* Medium font weight */
 }
 
-/* Drop Zone */
+/* File drop zone area */
 .drop-zone {
-    border: 2px dashed #555;
+    border: 2px dashed #555;    /* Dashed border indicates drop target */
     border-radius: 8px;
     padding: 30px;
     text-align: center;
-    background-color: #33334d;
+    background-color: #33334d;  /* Slightly lighter background */
     margin-bottom: 20px;
-    color: #aaa;
-    transition: border-color 0.3s ease;
+    color: #aaa;                /* Light grey text */
+    transition: border-color 0.3s ease;  /* Smooth colour transition */
 }
 
+/* Visual feedback when dragging file over drop zone */
 .drop-zone.drag-over {
-    border-color: #007bff;
-    background-color: #3d3d5d;
+    border-color: #007bff;      /* Blue border when hovering */
+    background-color: #3d3d5d;  /* Slightly lighter background */
 }
 
+/* Supported file types text */
 .drop-zone-support {
     display: block;
     font-size: 12px;
-    margin-top: 10px;
+    margin-top: 10px;  /* Space above support text */
 }
 
+/* Cloud upload icon container */
 .drop-zone-icon {
-    margin-bottom: 15px;
+    margin-bottom: 15px;  /* Space below icon */
 }
 
+/* Cloud icon SVG sizing */
 .cloud-icon {
     display: inline-block;
     width: 60px;
@@ -265,74 +386,82 @@ body, html {
 .cloud-icon svg {
     width: 100%;
     height: 100%;
-    fill: #007bff;
+    fill: #007bff;  /* Blue cloud icon */
     stroke: none;
 }
 
+/* Links inside drop zone (e.g., "browse") */
 .drop-zone a {
-    color: #007bff;
-    text-decoration: none;
+    color: #007bff;         /* Blue link colour */
+    text-decoration: none;  /* No underline */
     font-weight: bold;
 }
 
+/* Container for list of uploaded files */
 .upload-list-container {
-    margin-bottom: 15px;
+    margin-bottom: 15px;  /* Space below file list */
 }
 
+/* Individual uploaded file item */
 .upload-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #33334d;
+    align-items: center;            /* Centre items vertically */
+    justify-content: space-between; /* Space between filename and remove icon */
+    background: #33334d;            /* Dark background */
     padding: 10px 15px;
     border-radius: 5px;
     font-size: 14px;
-    margin-top: 10px;
+    margin-top: 10px;               /* Space between file items */
 }
 
+/* Remove file icon (X) */
 .remove-file-icon {
-    color: #ff4d4d;
+    color: #ff4d4d;  /* Red for removal action */
     font-size: 24px;
-    cursor: pointer;
-    line-height: 1;
+    cursor: pointer; /* Clickable cursor */
+    line-height: 1;  /* Prevent extra spacing */
 }
 
-/* Forms */
+/* Form field group container */
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 15px;     /* Space between form fields */
     display: flex;
-    flex-direction: column;
+    flex-direction: column;  /* Stack label above input */
 }
 
+/* Form field labels */
 .form-group label {
     font-size: 12px;
-    color: #ccc;
-    margin-bottom: 5px;
+    color: #ccc;         /* Light grey label text */
+    margin-bottom: 5px;  /* Space between label and input */
 }
 
+/* Text inputs and select dropdowns */
 .form-group input,
 .form-group select {
-    background: #1f1f33;
-    border: 1px solid #555;
+    background: #1f1f33;      /* Dark background */
+    border: 1px solid #555;   /* Grey border */
     border-radius: 5px;
     padding: 10px;
     color: white;
     font-size: 14px;
 }
 
+/* Select dropdown specific styles */
 .form-group select {
-    width: 100%;
-    cursor: pointer;
+    width: 100%;      /* Full width */
+    cursor: pointer;  /* Pointer cursor to indicate interactivity */
 }
 
-/* Buttons */
+/* Container for modal action buttons */
 .modal-buttons {
     display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 25px;
+    justify-content: flex-end;  /* Align buttons to the right */
+    gap: 10px;                  /* Space between buttons */
+    margin-top: 25px;           /* Space above buttons */
 }
 
+/* Base button styles */
 .btn {
     border: none;
     border-radius: 5px;
@@ -340,77 +469,103 @@ body, html {
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s;  /* Smooth colour transition */
 }
 
-.btn-primary { background-color: #007bff; color: white; }
-.btn-primary:hover { background-color: #0056b3; }
+/* Primary action button (e.g., Save, Submit) */
+.btn-primary { 
+    background-color: #007bff; 
+    color: white; 
+}
+.btn-primary:hover { 
+    background-color: #0056b3;  /* Darker blue on hover */
+}
 
-.btn-secondary { background-color: #ff4d4d; color: white; }
-.btn-secondary:hover { background-color: #cc0000; }
+/* Secondary/destructive action button (e.g., Delete) */
+.btn-secondary { 
+    background-color: #ff4d4d; 
+    color: white; 
+}
+.btn-secondary:hover { 
+    background-color: #cc0000;  /* Darker red on hover */
+}
 
-.btn-tertiary { background-color: #6c757d; color: white; margin-right: auto; }
-.btn-tertiary:hover { background-color: #5a6268; }
+/* Tertiary/cancel button */
+.btn-tertiary { 
+    background-color: #6c757d;  /* Grey */
+    color: white; 
+    margin-right: auto;         /* Push to left side (opposite of other buttons) */
+}
+.btn-tertiary:hover { 
+    background-color: #5a6268;  /* Darker grey on hover */
+}
 
-/* Configure Modal */
+/* Configure book modal - larger and more complex layout */
 #configure-modal-content {
-    width: 90%;
-    max-width: 1000px;
-    max-height: 85vh;
+    width: 90%;                 /* 90% of screen width */
+    max-width: 1000px;          /* Cap at 1000px */
+    max-height: 85vh;           /* 85% of viewport height */
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: hidden;           /* Prevent outer scroll - scroll handled inside */
 }
 
+/* Two-column layout for configure modal */
 .configure-layout {
     display: flex;
-    gap: 20px;
-    flex: 1;
-    overflow: hidden;
-    min-height: 0;
+    gap: 20px;                  /* Space between columns */
+    flex: 1;                    /* Take remaining space */
+    overflow: hidden;           /* Prevent overflow */
+    min-height: 0;              /* Allow flex child to shrink */
 }
 
+/* Left column: cover preview and metadata */
 .configure-left {
-    flex: 0 0 280px;
+    flex: 0 0 280px;            /* Fixed width, don't grow or shrink */
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    overflow-y: auto;
-    padding-right: 10px;
+    gap: 12px;                  /* Space between elements */
+    overflow-y: auto;           /* Scroll if content exceeds height */
+    padding-right: 10px;        /* Space for scrollbar */
 }
 
+/* Right column: content preview */
 .configure-right {
-    flex: 1;
+    flex: 1;                    /* Take remaining space */
     display: flex;
     flex-direction: column;
-    min-width: 0;
-    overflow: hidden;
+    min-width: 0;               /* Allow shrinking */
+    overflow: hidden;           /* Prevent overflow */
 }
 
+/* Book cover preview in configure modal */
 #config-cover-preview {
     width: 100%;
-    aspect-ratio: 2 / 3;
-    background-color: #555;
+    aspect-ratio: 2 / 3;        /* Standard book proportions */
+    background-color: #555;     /* Grey fallback */
     border-radius: 5px;
-    background-size: cover;
-    background-position: center;
+    background-size: cover;     /* Fill the space */
+    background-position: center; /* Centre the image */
 }
 
+/* Header for content preview section */
 .preview-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: space-between;  /* Space between title and navigation */
     margin-bottom: 10px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #444;   /* Divider line */
 }
 
+/* Navigation controls for preview */
 .preview-navigation {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 10px;  /* Space between navigation elements */
 }
 
+/* Previous/next buttons in preview */
 .preview-nav-btn {
     background: #33334d;
     border: 1px solid #555;
@@ -421,16 +576,17 @@ body, html {
     font-size: 14px;
 }
 
+/* Scrollable content preview area */
 .preview-pane {
-    background: white;
-    color: #000;
+    background: white;      /* White background for readability */
+    color: #000;            /* Black text */
     border-radius: 5px;
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
+    flex: 1;                /* Take remaining vertical space */
+    overflow-y: auto;       /* Enable scrolling */
+    min-height: 0;          /* Allow shrinking */
 }
 
-/* Simple Modals */
+/* Simple modal content box (for confirmations, etc.) */
 .modal-content-simple {
     background-color: #2c2c44;
     padding: 25px 30px;
@@ -441,6 +597,7 @@ body, html {
     text-align: center;
 }
 
+/* Delete confirmation modal */
 .delete-modal-content {
     background-color: #2c2c44;
     padding: 30px;
@@ -452,198 +609,210 @@ body, html {
 }
 
 /* =========================================
-   READER VIEW - ENHANCED LAYOUT
+   READER VIEW
    =========================================
+   Full-screen book reading interface
 */
+
+/* Main reader container - takes full screen */
 #book-reader-view {
     display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background-color: white;
-    position: relative;
-    overflow: hidden;
+    flex-direction: column;  /* Stack header, content, controls vertically */
+    height: 100vh;           /* Full viewport height */
+    background-color: white; /* White reading background */
+    position: relative;      /* For absolute positioning of header */
+    overflow: hidden;        /* Prevent scroll on outer container */
 }
 
-/* Reader Header - Trigger Zone & Styling
-   This only appears in the top-left area
-*/
+/* Invisible trigger zone in top-left corner
+   Hovering here reveals the reader header */
 .reader-header-trigger {
     position: absolute;
     top: 0;
     left: 0;
-    width: 250px; /* Width of the trigger zone */
-    height: 100px; /* Height of the trigger zone */
-    z-index: 99; /* Below header, above content */
-    background: transparent;
+    width: 250px;        /* Width of the trigger zone */
+    height: 100px;       /* Height of the trigger zone */
+    z-index: 99;         /* Below header, above content */
+    background: transparent; /* Invisible */
 }
 
+/* Floating header that appears on hover in top-left */
 .reader-header {
     position: absolute;
     top: 20px;
     left: 20px;
-    width: auto; /* Allow it to fit content, not full width */
-    max-width: 400px;
+    width: auto;                /* Fit content, not full width */
+    max-width: 400px;           /* Prevent excessive width */
     display: flex;
     align-items: center;
     padding: 12px 20px;
-    background: rgba(31, 31, 51, 0.95);
+    background: rgba(31, 31, 51, 0.95);  /* Semi-transparent dark background */
     border: 1px solid #333;
     border-radius: 12px;
-    z-index: 100;
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    z-index: 100;               /* Above content but below controls */
+    opacity: 0;                 /* Hidden by default */
+    transition: opacity 0.3s ease;  /* Smooth fade in/out */
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    pointer-events: none; /* Ignore clicks when invisible */
+    pointer-events: none;       /* Ignore clicks when invisible */
 }
 
-/* Visible state handled by JS */
+/* Visible state - toggled by JavaScript on hover */
 .reader-header.visible {
-    opacity: 1;
-    pointer-events: all;
+    opacity: 1;              /* Fully visible */
+    pointer-events: all;     /* Accept clicks */
 }
 
+/* Back button to return to bookshelf */
 .reader-back-btn {
     display: flex;
     align-items: center;
-    background: rgba(0, 123, 255, 0.9);
+    background: rgba(0, 123, 255, 0.9);  /* Semi-transparent blue */
     border: none;
     color: white;
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
     padding: 8px 14px;
-    margin-right: 15px;
+    margin-right: 15px;      /* Space between button and title */
     border-radius: 6px;
     transition: background 0.2s;
 }
 
 .reader-back-btn:hover {
-    background: rgba(0, 86, 179, 1);
+    background: rgba(0, 86, 179, 1);  /* Solid darker blue on hover */
 }
 
+/* Container for book title and metadata in header */
 .reader-title-section {
     display: flex;
-    flex-direction: column;
+    flex-direction: column;  /* Stack title and metadata */
 }
 
+/* Book title in reader header */
 .reader-title {
     font-size: 16px;
     font-weight: bold;
     color: white;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap;        /* Don't wrap */
+    overflow: hidden;           /* Hide overflow */
+    text-overflow: ellipsis;    /* Show "..." for long titles */
     max-width: 250px;
 }
 
+/* Author/page info below title */
 .reader-metadata {
     font-size: 12px;
-    color: #bbb;
+    color: #bbb;  /* Light grey secondary text */
 }
 
-/* Reader Content Area
-*/
+/* Main reading content area - contains page(s) */
 .reader-content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
+    flex: 1;            /* Take all available vertical space */
+    display: flex;      /* Flexbox for two-page layout */
+    overflow: hidden;   /* Prevent scrolling on container */
     background: white;
-    min-height: 0;
-    /* Remove padding to maximise space */
-    padding: 0; 
+    min-height: 0;      /* Allow shrinking */
+    padding: 0;         /* No padding - maximise reading space */
 }
 
+/* Individual page containers (left and right for two-page spread) */
 .reader-page-left,
 .reader-page-right {
-    flex: 1;
+    flex: 1;            /* Each page takes equal width */
     display: flex;
-    overflow: hidden;
+    overflow: hidden;   /* Scrolling handled by content inside */
     background: white;
     box-sizing: border-box;
-    /* Just a subtle divider */
-    position: relative;
+    position: relative; /* For positioning divider */
 }
 
+/* Subtle vertical divider between left and right pages */
 .reader-page-left::after {
     content: "";
     position: absolute;
-    right: 0;
-    top: 5%;
-    height: 90%;
-    width: 1px;
-    background-color: #eee;
+    right: 0;           /* Right edge of left page */
+    top: 5%;            /* Start slightly below top */
+    height: 90%;        /* Don't extend to full height */
+    width: 1px;         /* Thin line */
+    background-color: #eee;  /* Very light grey */
 }
 
+/* Content wrapper for each page */
 .reader-page-content {
     width: 100%;
     height: 100%;
-    color: #000;
-    font-family: 'Times New Roman', Times, serif;
+    color: #000;        /* Black text for reading */
+    font-family: 'Times New Roman', Times, serif;  /* Traditional reading font */
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    overflow: hidden;
+    align-items: flex-start;    /* Align content to top */
+    justify-content: center;    /* Centre horizontally */
+    overflow: hidden;           /* Clipping handled by child */
     box-sizing: border-box;
 }
 
-/* EPUB Content Styling 
-   Optimised for maximum readability and space usage
-*/
+/* EPUB content specific styling
+   Optimised for maximum readability and space usage */
 .reader-page-content.epub-content {
-    display: block;
-    overflow-y: auto;
-    overflow-x: hidden;
-    /* Reduced vertical padding to use more height */
-    padding: 2vh 5%;
-    /* Responsive font size calculation */
+    display: block;         /* Block layout for text flow */
+    overflow-y: auto;       /* Enable vertical scrolling */
+    overflow-x: hidden;     /* Prevent horizontal scroll */
+    padding: 2vh 5%;        /* Responsive vertical padding (2% of viewport height) */
+    /* Responsive font size: minimum 18px, scales with viewport, maximum 24px */
     font-size: clamp(18px, 1.8vw, 24px); 
-    line-height: 1.6;
+    line-height: 1.6;       /* Comfortable reading line height */
     height: 100%;
 }
 
+/* Headings in EPUB content */
 .reader-page-content.epub-content h1,
 .reader-page-content.epub-content h2,
 .reader-page-content.epub-content h3 {
-    font-weight: 600;
-    text-align: center;
-    margin: 1em 0 1.5em 0;
-    line-height: 1.2;
-    color: #333;
+    font-weight: 600;       /* Semi-bold */
+    text-align: center;     /* Centre headings */
+    margin: 1em 0 1.5em 0;  /* Space above and below */
+    line-height: 1.2;       /* Tighter line height for headings */
+    color: #333;            /* Dark grey (not pure black) */
 }
 
+/* Paragraphs in EPUB content */
 .reader-page-content.epub-content p {
-    text-indent: 1.5em;
-    margin: 0.8em 0;
-    text-align: justify;
-    color: #111;
+    text-indent: 1.5em;     /* Traditional paragraph indent */
+    margin: 0.8em 0;        /* Space between paragraphs */
+    text-align: justify;    /* Justified text for traditional book feel */
+    color: #111;            /* Near-black for comfortable reading */
 }
 
-/* PDF Content */
+/* PDF page images */
 .reader-page-content img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
+    max-width: 100%;        /* Never exceed container width */
+    max-height: 100%;       /* Never exceed container height */
+    width: auto;            /* Maintain aspect ratio */
     height: auto;
     display: block;
-    margin: auto;
-    object-fit: contain;
+    margin: auto;           /* Centre the image */
+    object-fit: contain;    /* Fit entire image without cropping */
 }
 
-/* Audio Controls
+/* =========================================
+   AUDIO CONTROLS
+   =========================================
+   Text-to-speech playback controls
 */
+
+/* Main audio control bar at bottom of reader */
 .audio-controls {
-    display: none; /* Flex when active */
+    display: none;              /* Hidden by default - shown when TTS is active */
     align-items: center;
     width: 100%;
-    justify-content: space-between;
+    justify-content: space-between;  /* Spread controls across width */
     position: relative;
     gap: 15px;
-    background-color: #1f1f33;
+    background-color: #1f1f33;  /* Dark background */
     padding: 10px 30px;
     box-sizing: border-box;
-    border-top: 1px solid #333;
-    flex-shrink: 0;
-    z-index: 200;
+    border-top: 1px solid #333;  /* Divider line */
+    flex-shrink: 0;              /* Don't shrink */
+    z-index: 200;                /* Above content */
 }
 
 .audio-playback-controls {
@@ -680,51 +849,6 @@ body, html {
 }
 
 .audio-btn.play:hover { background: #0056b3; }
-
-/* Auto Turn Button 
-*/
-#auto-turn-btn {
-    display: none !important;
-}
-
-.auto-turn-btn {
-    background: #33334d; 
-    border: 1px solid #555; 
-    border-radius: 5px; 
-    padding: 5px 12px; 
-    cursor: pointer; 
-    color: #ccc; 
-    font-size: 11px; 
-    font-weight: bold; 
-    text-transform: uppercase;
-    position: absolute;
-    display: flex; 
-    flex-direction: column;
-    left: 50%;
-    transform: translateX(calc(-50% + 120px)); /* Move to the right of forward button */
-    z-index: 11; /* Above controls */
-}
-
-.audio-sliders-group {
-    margin-left: auto;
-    flex-shrink: 0;
-}
-
-/* Active state for Auto Turn - Turns BLUE */
-.auto-turn-btn.active {
-    background-color: #007bff;
-    color: white;
-    border-color: #0056b3;
-    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
-}
-
-.auto-turn-btn:hover {
-    background: #444458;
-}
-
-.auto-turn-btn.active:hover {
-    background: #0056b3;
-}
 
 /* Reader Footer */
 .reader-footer {
