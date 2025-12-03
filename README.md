@@ -15,8 +15,9 @@ To set up the Gradio Interface, unzip all files locally, then run "DownloadTagMo
 To Summarise:
 
 ### Setup
-1. Unzip folder locally
-2. Run "DownloadTagModels.bat"
+1. Install requirements via ``pip install -r requirements.txt``
+2. Unzip folder locally
+3. Run "DownloadTagModels.bat"
 
 ### Run
 1. Visit "https://audioapi-g2ru.onrender.com/" in your browser
